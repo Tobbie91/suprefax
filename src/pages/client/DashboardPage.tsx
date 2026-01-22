@@ -129,22 +129,12 @@ export default function DashboardPage() {
           <CardContent>
             <div className="grid gap-4 sm:grid-cols-2">
               <Link
-                to="/dashboard/applications/new/visa-pof"
+                to="/dashboard/applications/new"
                 className="flex items-center gap-3 rounded-lg border border-neutral-200 p-4 transition-colors hover:bg-neutral-50"
               >
-                <div className="text-2xl">🎓</div>
+                <div className="text-2xl">📜</div>
                 <div>
-                  <p className="font-medium text-neutral-900">Visa POF</p>
-                  <p className="text-xs text-neutral-500">Apply now</p>
-                </div>
-              </Link>
-              <Link
-                to="/dashboard/applications/new/lpo-financing"
-                className="flex items-center gap-3 rounded-lg border border-neutral-200 p-4 transition-colors hover:bg-neutral-50"
-              >
-                <div className="text-2xl">📄</div>
-                <div>
-                  <p className="font-medium text-neutral-900">LPO Financing</p>
+                  <p className="font-medium text-neutral-900">Student Proof of Funds</p>
                   <p className="text-xs text-neutral-500">Apply now</p>
                 </div>
               </Link>

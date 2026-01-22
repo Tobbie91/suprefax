@@ -178,7 +178,7 @@ export default function ServiceDetailPage() {
                 </div>
 
                 <Button className="w-full" size="lg" asChild>
-                  <Link to={`/dashboard/applications/new/${slug}`}>
+                  <Link to="/dashboard/applications/new">
                     Apply Now
                   </Link>
                 </Button>

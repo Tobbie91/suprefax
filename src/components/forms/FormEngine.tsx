@@ -106,6 +106,15 @@ function shouldShowStep(step: FormStep, formData: FormData): boolean {
   return evaluateCondition(step.showIf, formData);
 }
 
+// Check if section should be shown
+function shouldShowSection(
+  section: { showIf?: ConditionalExpression },
+  formData: FormData
+): boolean {
+  if (!section.showIf) return true;
+  return evaluateCondition(section.showIf, formData);
+}
+
 // Field renderer component
 function FieldRenderer({
   field,
@@ -454,13 +463,16 @@ export function FormEngine({
   const isFirstStep = currentStepIndex === 0;
   const isLastStep = currentStepIndex === visibleSteps.length - 1;
 
-  // Get fields for current step
+  // Get fields for current step (used for validation)
   const currentFields = useMemo(() => {
     if (!currentStep) return [];
-    const fields = currentStep.fields || [];
+    const fields: FormField[] = [...(currentStep.fields || [])];
     if (currentStep.sections) {
       currentStep.sections.forEach((section) => {
-        fields.push(...section.fields);
+        // Only include fields from visible sections
+        if (shouldShowSection(section, formData)) {
+          fields.push(...section.fields);
+        }
       });
     }
     return fields.filter((field) => shouldShowField(field, formData));
@@ -629,16 +641,48 @@ export function FormEngine({
           )}
         </CardHeader>
         <CardContent>
-          <div className="space-y-6">
-            {currentFields.map((field) => (
-              <FieldRenderer
-                key={field.id}
-                field={field}
-                value={get(formData, field.name)}
-                onChange={(value) => updateField(field.name, value)}
-                error={errors[field.name]}
-              />
-            ))}
+          <div className="space-y-8">
+            {currentStep.sections ? (
+              // Render sections with titles
+              currentStep.sections.map((section) =>
+                shouldShowSection(section, formData) ? (
+                  <div key={section.id} className="space-y-4">
+                    {section.title && (
+                      <h3 className="border-b border-neutral-200 pb-2 text-lg font-semibold text-neutral-900">
+                        {section.title}
+                      </h3>
+                    )}
+                    {section.description && (
+                      <p className="text-sm text-neutral-600">{section.description}</p>
+                    )}
+                    <div className="space-y-4">
+                      {section.fields
+                        .filter((field) => shouldShowField(field, formData))
+                        .map((field) => (
+                          <FieldRenderer
+                            key={field.id}
+                            field={field}
+                            value={get(formData, field.name)}
+                            onChange={(value) => updateField(field.name, value)}
+                            error={errors[field.name]}
+                          />
+                        ))}
+                    </div>
+                  </div>
+                ) : null
+              )
+            ) : (
+              // Render flat fields (no sections)
+              currentFields.map((field) => (
+                <FieldRenderer
+                  key={field.id}
+                  field={field}
+                  value={get(formData, field.name)}
+                  onChange={(value) => updateField(field.name, value)}
+                  error={errors[field.name]}
+                />
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

@@ -194,14 +194,6 @@ export const router = createBrowserRouter([
         ),
       },
       {
-        path: 'applications/new/:serviceSlug',
-        element: (
-          <LazyComponent>
-            <NewApplicationPage />
-          </LazyComponent>
-        ),
-      },
-      {
         path: 'applications/:id',
         element: (
           <LazyComponent>
