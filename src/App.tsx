@@ -1,0 +1,59 @@
+import { Routes, Route, Navigate } from "react-router-dom";
+import useStore from "./store/useStore";
+import ProtectedRoute from "./components/ProtectedRoute";
+import Login from "./components/Login";
+import BorrowerDashboard from "./dashboards/borrower/Dashboard";
+import AgentDashboard from "./dashboards/agent/Dashboard";
+import AdminDashboard from "./dashboards/admin/Dashboard";
+import type { UserRole } from "./types/api";
+
+function App() {
+  const user = useStore((state) => state.user);
+
+  const defaultPath = (): string => {
+    if (!user) return "/login";
+    const map: Record<UserRole, string> = {
+      borrower: "/borrower",
+      agent: "/agent",
+      admin: "/admin",
+    };
+    return map[user.role] || "/login";
+  };
+
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+
+      <Route
+        path="/borrower"
+        element={
+          <ProtectedRoute allowedRole="borrower">
+            <BorrowerDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/agent"
+        element={
+          <ProtectedRoute allowedRole="agent">
+            <AgentDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute allowedRole="admin">
+            <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route path="*" element={<Navigate to={defaultPath()} replace />} />
+    </Routes>
+  );
+}
+
+export default App;

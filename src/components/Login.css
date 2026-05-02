@@ -1,0 +1,379 @@
+.suprefax-login {
+  --bg: #F5F4F0;
+  --white: #FFFFFF;
+  --ink: #0F0F0F;
+  --ink2: #1A1A1A;
+  --muted: #6B6B6B;
+  --dim: #A0A0A0;
+  --border: #E2E0D8;
+  --border2: #D0CECC;
+  --blue: #1B4FD8;
+  --blue-lt: #EBF0FF;
+  --blue-dk: #1240B0;
+  --teal: #0F7B6C;
+  --teal-lt: #E6F5F3;
+  --amber: #B45309;
+  --amber-lt: #FEF3C7;
+  --coral: #C2410C;
+  --coral-lt: #FFF0E8;
+  --purple: #6D28D9;
+  --purple-lt: #EDE9FE;
+  --green: #166534;
+  --green-lt: #F0FDF4;
+  --shadow: 0 1px 3px rgba(0, 0, 0, .08), 0 4px 16px rgba(0, 0, 0, .06);
+  --font: 'Outfit', sans-serif;
+  --font-serif: 'Playfair Display', serif;
+  --r: 14px;
+  --r2: 10px;
+  --r3: 8px;
+
+  min-height: 100vh;
+  display: flex;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.suprefax-login *,
+.suprefax-login *::before,
+.suprefax-login *::after {
+  box-sizing: border-box;
+}
+
+/* LEFT PANEL */
+.sx-left {
+  width: 52%;
+  background: var(--ink2);
+  display: flex;
+  flex-direction: column;
+  padding: 48px 56px;
+  position: relative;
+  overflow: hidden;
+}
+.sx-left::before {
+  content: '';
+  position: absolute;
+  top: -200px;
+  right: -200px;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: rgba(27, 79, 216, .08);
+  pointer-events: none;
+}
+.sx-left::after {
+  content: '';
+  position: absolute;
+  bottom: -150px;
+  left: -100px;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: rgba(15, 123, 108, .06);
+  pointer-events: none;
+}
+.sx-left-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 64px;
+  position: relative;
+}
+.sx-logo-mark {
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  background: var(--blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sx-logo-mark svg {
+  width: 22px;
+  height: 22px;
+  fill: #fff;
+}
+.sx-logo-name {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  color: #fff;
+  font-weight: 400;
+}
+.sx-hero-text {
+  margin-bottom: 48px;
+  position: relative;
+}
+.sx-hero-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--blue);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 18px;
+}
+.sx-hero-headline {
+  font-family: var(--font-serif);
+  font-size: 46px;
+  line-height: 1.15;
+  color: #fff;
+  margin-bottom: 20px;
+  font-style: italic;
+}
+.sx-hero-sub {
+  font-size: 16px;
+  color: rgba(255, 255, 255, .55);
+  line-height: 1.75;
+  max-width: 380px;
+}
+.sx-products-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: auto;
+  position: relative;
+}
+.sx-pl-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, .3);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.sx-pl-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: var(--r2);
+  border: 1px solid rgba(255, 255, 255, .08);
+  background: rgba(255, 255, 255, .04);
+  transition: border-color .2s;
+}
+.sx-pl-item:hover {
+  border-color: rgba(255, 255, 255, .15);
+}
+.sx-pl-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.sx-pl-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+}
+.sx-pl-range {
+  font-size: 11px;
+  color: rgba(255, 255, 255, .35);
+  margin-top: 1px;
+}
+
+/* RIGHT PANEL */
+.sx-right {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 64px;
+  background: var(--white);
+}
+.sx-signin-box {
+  width: 100%;
+  max-width: 440px;
+}
+.sx-si-title {
+  font-family: var(--font-serif);
+  font-size: 32px;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.sx-si-sub {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 32px;
+  line-height: 1.6;
+}
+
+.sx-role-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.sx-role-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 28px;
+}
+.sx-role-btn {
+  border: 1.5px solid var(--border);
+  border-radius: var(--r2);
+  padding: 16px 12px;
+  cursor: pointer;
+  text-align: center;
+  background: var(--white);
+  transition: all .2s;
+}
+.sx-role-btn:hover {
+  border-color: var(--blue);
+  background: var(--blue-lt);
+}
+.sx-role-btn.active {
+  border-color: var(--blue);
+  background: var(--blue-lt);
+}
+.sx-role-btn.active.r-agent {
+  border-color: var(--purple);
+  background: var(--purple-lt);
+}
+.sx-role-btn.active.r-admin {
+  border-color: var(--coral);
+  background: var(--coral-lt);
+}
+.sx-role-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 10px;
+}
+.sx-role-icon svg {
+  width: 20px;
+  height: 20px;
+}
+.sx-role-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.sx-role-desc {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.sx-fg {
+  margin-bottom: 16px;
+}
+.sx-fl {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.sx-fi {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--r2);
+  border: 1.5px solid var(--border);
+  background: var(--white);
+  font-size: 14px;
+  color: var(--ink);
+  font-family: var(--font);
+  outline: none;
+  transition: border-color .15s;
+}
+.sx-fi:focus {
+  border-color: var(--blue);
+}
+.sx-form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+  font-size: 13px;
+}
+.sx-check-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--muted);
+}
+.sx-forgot {
+  color: var(--blue);
+  cursor: pointer;
+  font-weight: 500;
+  background: none;
+  border: none;
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 0;
+}
+.sx-forgot:hover {
+  text-decoration: underline;
+}
+.sx-submit-btn {
+  width: 100%;
+  padding: 13px;
+  border-radius: var(--r2);
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font);
+  color: #fff;
+  transition: all .2s;
+  margin-bottom: 18px;
+  letter-spacing: .3px;
+}
+.sx-submit-btn:disabled {
+  opacity: .65;
+  cursor: not-allowed;
+}
+.sx-err-box {
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: var(--r3);
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #B91C1C;
+  margin-bottom: 16px;
+}
+.sx-info-box {
+  background: var(--amber-lt);
+  border: 1px solid #FCD34D;
+  border-radius: var(--r3);
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--amber);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+.sx-si-footer {
+  font-size: 12px;
+  color: var(--dim);
+  text-align: center;
+  line-height: 1.8;
+}
+.sx-si-footer a {
+  color: var(--blue);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+@media (max-width: 880px) {
+  .suprefax-login {
+    flex-direction: column;
+  }
+  .sx-left {
+    width: 100%;
+    padding: 32px 28px;
+  }
+  .sx-right {
+    padding: 32px 28px;
+  }
+  .sx-hero-headline {
+    font-size: 32px;
+  }
+}
