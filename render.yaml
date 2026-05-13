@@ -1,0 +1,36 @@
+databases:
+  - name: suprefax-db
+    plan: free
+    databaseName: suprefax
+    user: suprefax
+
+services:
+  - type: keyvalue
+    name: suprefax-redis
+    plan: free
+    ipAllowList: []
+
+  - type: web
+    name: suprefax-api
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: DATABASE_URL
+        fromDatabase:
+          name: suprefax-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: suprefax-redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://suprefax.netlify.app
