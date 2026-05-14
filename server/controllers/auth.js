@@ -25,6 +25,33 @@ export const login = async (req, res) => {
   });
 };
 
+export const bootstrapAdmin = async (req, res) => {
+  const { email, password, full_name } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ message: "Email and password are required" });
+  }
+
+  const existing = await db.query("SELECT 1 FROM users WHERE role='admin' LIMIT 1");
+  if (existing.rows.length > 0) {
+    return res.status(403).json({ message: "Admin already exists. This endpoint is disabled." });
+  }
+
+  const hashed = await bcrypt.hash(password, 10);
+  try {
+    const result = await db.query(
+      "INSERT INTO users (email, password, role, full_name) VALUES ($1,$2,'admin',$3) RETURNING id, email, role, full_name",
+      [email, hashed, full_name || "Admin"]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    if (err.code === "23505") {
+      return res.status(409).json({ message: "Email already in use" });
+    }
+    throw err;
+  }
+};
+
 export const register = async (req, res) => {
   const { email, password, full_name } = req.body;
 

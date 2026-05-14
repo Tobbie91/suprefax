@@ -4,7 +4,7 @@ import { audit } from "../middleware/audit.js";
 import { validate } from "../middleware/validate.js";
 import { applicationSchema, extensionSchema, loginSchema } from "../validation/applicationSchema.js";
 
-import { login, register } from "../controllers/auth.js";
+import { login, register, bootstrapAdmin } from "../controllers/auth.js";
 import { createApplication, getAgentApplications, getAgentRepayments } from "../controllers/application.js";
 import { getBorrowerRepayments, getBorrowerNotifications, getBorrowerApplications, getBorrowerExtensions, createBorrowerApplication } from "../controllers/borrower.js";
 import { requestExtension, approveExtension, declineExtension } from "../controllers/extensions.js";
@@ -17,6 +17,7 @@ const router = express.Router();
 // Auth
 router.post("/auth/login", validate(loginSchema), login);
 router.post("/auth/register", register);
+router.post("/auth/bootstrap-admin", bootstrapAdmin);
 
 // Borrower
 router.get("/borrower/repayments", authenticate, authorize(["borrower"]), getBorrowerRepayments);
