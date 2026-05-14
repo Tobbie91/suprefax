@@ -1,5 +1,5 @@
 import express from "express";
-import { authenticate, authorize } from "../middleware/auth.js";
+import { authenticate, authorize, requireVerifiedAgent } from "../middleware/auth.js";
 import { audit } from "../middleware/audit.js";
 import { validate } from "../middleware/validate.js";
 import { applicationSchema, extensionSchema, loginSchema } from "../validation/applicationSchema.js";
@@ -11,6 +11,7 @@ import { requestExtension, approveExtension, declineExtension } from "../control
 import { sign, getSignatures } from "../controllers/signature.js";
 import { getAllApplications, getExtensions, getAuditLogs, getAnalytics, controlNotifications, listAgents, listCustomers, createAgent } from "../controllers/admin.js";
 import { getDocument } from "../controllers/documents.js";
+import { submitKyc, getKycStatus } from "../controllers/kyc.js";
 
 const router = express.Router();
 
@@ -26,9 +27,13 @@ router.get("/borrower/extensions", authenticate, authorize(["borrower"]), getBor
 router.post("/borrower/applications", authenticate, authorize(["borrower"]), createBorrowerApplication);
 router.get("/notifications", authenticate, getBorrowerNotifications);
 
-// Agent
-router.get("/agent/applications", authenticate, authorize(["agent"]), getAgentApplications);
-router.get("/agent/repayments", authenticate, authorize(["agent"]), getAgentRepayments);
+// Agent KYC (allowed before verification)
+router.get("/agent/kyc/status", authenticate, authorize(["agent"]), getKycStatus);
+router.post("/agent/kyc/submit", authenticate, authorize(["agent"]), submitKyc);
+
+// Agent (requires verified KYC)
+router.get("/agent/applications", authenticate, authorize(["agent"]), requireVerifiedAgent, getAgentApplications);
+router.get("/agent/repayments", authenticate, authorize(["agent"]), requireVerifiedAgent, getAgentRepayments);
 
 // Applications
 router.post(

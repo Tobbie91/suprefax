@@ -5,10 +5,11 @@ import type { UserRole } from "../types/api";
 
 interface Props {
   allowedRole?: UserRole;
+  requireVerifiedKyc?: boolean;
   children: ReactNode;
 }
 
-const ProtectedRoute = ({ allowedRole, children }: Props) => {
+const ProtectedRoute = ({ allowedRole, requireVerifiedKyc, children }: Props) => {
   const user = useStore((state) => state.user);
 
   if (!user) return <Navigate to="/login" replace />;
@@ -19,6 +20,9 @@ const ProtectedRoute = ({ allowedRole, children }: Props) => {
       admin: "/admin",
     };
     return <Navigate to={roleMap[user.role] || "/login"} replace />;
+  }
+  if (requireVerifiedKyc && user.role === "agent" && user.kyc_status !== "verified") {
+    return <Navigate to="/agent/kyc" replace />;
   }
 
   return <>{children}</>;

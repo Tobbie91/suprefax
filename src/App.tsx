@@ -3,6 +3,7 @@ import useStore from "./store/useStore";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Login from "./components/Login";
 import Signup from "./components/Signup";
+import AgentKyc from "./components/AgentKyc";
 import BorrowerDashboard from "./dashboards/borrower/Dashboard";
 import AgentDashboard from "./dashboards/agent/Dashboard";
 import AdminDashboard from "./dashboards/admin/Dashboard";
@@ -13,6 +14,7 @@ function App() {
 
   const defaultPath = (): string => {
     if (!user) return "/login";
+    if (user.role === "agent" && user.kyc_status !== "verified") return "/agent/kyc";
     const map: Record<UserRole, string> = {
       borrower: "/borrower",
       agent: "/agent",
@@ -36,9 +38,18 @@ function App() {
       />
 
       <Route
-        path="/agent"
+        path="/agent/kyc"
         element={
           <ProtectedRoute allowedRole="agent">
+            <AgentKyc />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/agent"
+        element={
+          <ProtectedRoute allowedRole="agent" requireVerifiedKyc>
             <AgentDashboard />
           </ProtectedRoute>
         }

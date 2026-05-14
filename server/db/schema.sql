@@ -9,6 +9,16 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_status TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_nin TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_bvn TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_address TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_verified_at TIMESTAMP;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_provider_ref TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_rejection_reason TEXT;
+
+UPDATE users SET kyc_status='pending' WHERE role='agent' AND kyc_status IS NULL;
+
 CREATE TABLE IF NOT EXISTS applications (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   borrower_id UUID REFERENCES users(id),

@@ -106,7 +106,11 @@ export default function Login() {
         );
       }
 
-      navigate(ROLE_ROUTES[data.user.role] || "/");
+      const dest =
+        data.user.role === "agent" && data.user.kyc_status !== "verified"
+          ? "/agent/kyc"
+          : ROLE_ROUTES[data.user.role] || "/";
+      navigate(dest);
     } catch (err) {
       const axiosErr = err as AxiosError<{ message?: string }>;
       setError(

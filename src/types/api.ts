@@ -1,10 +1,13 @@
 export type UserRole = "borrower" | "agent" | "admin";
 
+export type KycStatus = "pending" | "verified" | "rejected" | null;
+
 export interface User {
   id: string;
   email: string;
   role: UserRole;
   name?: string;
+  kyc_status?: KycStatus;
 }
 
 export interface AuthResponse {
