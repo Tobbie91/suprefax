@@ -15,7 +15,7 @@ services:
     runtime: node
     plan: free
     rootDir: server
-    buildCommand: npm install
+    buildCommand: npm install && npm run migrate
     startCommand: node server.js
     healthCheckPath: /health
     envVars:

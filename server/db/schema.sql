@@ -1,6 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   email TEXT UNIQUE NOT NULL,
   password TEXT NOT NULL,
@@ -9,7 +9,7 @@ CREATE TABLE users (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE applications (
+CREATE TABLE IF NOT EXISTS applications (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   borrower_id UUID REFERENCES users(id),
   agent_id UUID REFERENCES users(id),
@@ -20,10 +20,10 @@ CREATE TABLE applications (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_applications_borrower ON applications(borrower_id);
-CREATE INDEX idx_applications_agent ON applications(agent_id);
+CREATE INDEX IF NOT EXISTS idx_applications_borrower ON applications(borrower_id);
+CREATE INDEX IF NOT EXISTS idx_applications_agent ON applications(agent_id);
 
-CREATE TABLE repayments (
+CREATE TABLE IF NOT EXISTS repayments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   application_id UUID REFERENCES applications(id),
   due_date DATE,
@@ -31,10 +31,10 @@ CREATE TABLE repayments (
   status TEXT DEFAULT 'due'
 );
 
-CREATE INDEX idx_repayments_due ON repayments(due_date);
-CREATE INDEX idx_repayments_application ON repayments(application_id);
+CREATE INDEX IF NOT EXISTS idx_repayments_due ON repayments(due_date);
+CREATE INDEX IF NOT EXISTS idx_repayments_application ON repayments(application_id);
 
-CREATE TABLE extensions (
+CREATE TABLE IF NOT EXISTS extensions (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   application_id UUID REFERENCES applications(id),
   new_date DATE,
@@ -43,7 +43,7 @@ CREATE TABLE extensions (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE signatures (
+CREATE TABLE IF NOT EXISTS signatures (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   application_id UUID REFERENCES applications(id),
   party TEXT,
@@ -51,7 +51,7 @@ CREATE TABLE signatures (
   signed_at TIMESTAMP
 );
 
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES users(id),
   application_id UUID,
@@ -62,9 +62,9 @@ CREATE TABLE notifications (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_notifications_user ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
 
-CREATE TABLE audit_logs (
+CREATE TABLE IF NOT EXISTS audit_logs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   actor_id UUID,
   action TEXT,
@@ -72,7 +72,7 @@ CREATE TABLE audit_logs (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE messages (
+CREATE TABLE IF NOT EXISTS messages (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   room_id TEXT,
   sender_id UUID REFERENCES users(id),
@@ -80,4 +80,4 @@ CREATE TABLE messages (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_messages_room ON messages(room_id);
+CREATE INDEX IF NOT EXISTS idx_messages_room ON messages(room_id);
