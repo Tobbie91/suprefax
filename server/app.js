@@ -12,6 +12,10 @@ collectDefaultMetrics();
 
 const app = express();
 
+app.set("trust proxy", 1);
+
+app.get("/health", (req, res) => res.json({ status: "ok" }));
+
 const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:5173",
@@ -36,7 +40,5 @@ app.get("/metrics", async (req, res) => {
   res.set("Content-Type", register.contentType);
   res.end(await register.metrics());
 });
-
-app.get("/health", (req, res) => res.json({ status: "ok" }));
 
 export default app;
