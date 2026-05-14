@@ -26,13 +26,23 @@ export const login = async (req, res) => {
 };
 
 export const register = async (req, res) => {
-  const { email, password, role, full_name } = req.body;
+  const { email, password, full_name } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ message: "Email and password are required" });
+  }
 
   const hashed = await bcrypt.hash(password, 10);
-  const result = await db.query(
-    "INSERT INTO users (email, password, role, full_name) VALUES ($1,$2,$3,$4) RETURNING id, email, role, full_name",
-    [email, hashed, role, full_name]
-  );
-
-  res.status(201).json(result.rows[0]);
+  try {
+    const result = await db.query(
+      "INSERT INTO users (email, password, role, full_name) VALUES ($1,$2,'borrower',$3) RETURNING id, email, role, full_name",
+      [email, hashed, full_name]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    if (err.code === "23505") {
+      return res.status(409).json({ message: "Email already in use" });
+    }
+    throw err;
+  }
 };

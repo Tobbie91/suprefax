@@ -1,4 +1,4 @@
-import { useState, useMemo, ReactNode } from "react";
+import { useState, useMemo, ReactNode, FormEvent } from "react";
 import { useQuery, useMutation, useQueryClient, QueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
@@ -426,15 +426,105 @@ function LoansPage({ applications }: { applications: Application[] }) {
 }
 
 function AgentsPage({ agents, setActiveTab }: { agents: Agent[]; setActiveTab: (t: TabKey) => void }) {
+  const queryClient = useQueryClient();
   const totalPortfolio = agents.reduce((s, a) => s + Number(a.portfolio || 0), 0);
   const totalCustomers = agents.reduce((s, a) => s + Number(a.customers || 0), 0);
 
+  const [formOpen, setFormOpen] = useState(false);
+  const [newAgent, setNewAgent] = useState({ full_name: "", email: "", password: "" });
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState<string | null>(null);
+
+  const createAgent = useMutation({
+    mutationFn: (payload: { email: string; password: string; full_name: string }) =>
+      api.post("/admin/agents", payload).then((r) => r.data),
+    onSuccess: (data) => {
+      setFormSuccess(`Agent ${data.email} created.`);
+      setFormError(null);
+      setNewAgent({ full_name: "", email: "", password: "" });
+      queryClient.invalidateQueries({ queryKey: ["admin-agents"] });
+    },
+    onError: (err: unknown) => {
+      const e = err as { response?: { data?: { message?: string } } };
+      setFormError(e.response?.data?.message || "Could not create agent.");
+      setFormSuccess(null);
+    },
+  });
+
+  const handleCreate = (e: FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+    setFormSuccess(null);
+    if (!newAgent.full_name || !newAgent.email || !newAgent.password) {
+      setFormError("All fields are required.");
+      return;
+    }
+    if (newAgent.password.length < 8) {
+      setFormError("Password must be at least 8 characters.");
+      return;
+    }
+    createAgent.mutate(newAgent);
+  };
+
   return (
     <div className="sa-page">
-      <div className="sa-page-hdr">
-        <div className="sa-page-title">Agent management</div>
-        <div className="sa-page-sub">All registered agents — view portfolios and contact details</div>
+      <div className="sa-page-hdr" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <div className="sa-page-title">Agent management</div>
+          <div className="sa-page-sub">All registered agents — view portfolios and contact details</div>
+        </div>
+        <button
+          className="sa-btn sa-btn-purple"
+          onClick={() => { setFormOpen((v) => !v); setFormError(null); setFormSuccess(null); }}
+        >
+          {formOpen ? "Cancel" : "+ Create agent"}
+        </button>
       </div>
+
+      {formOpen && (
+        <div className="sa-card" style={{ marginBottom: 20 }}>
+          <div className="sa-card-title" style={{ marginBottom: 12 }}>New agent</div>
+          {formError && <div className="sa-alert sa-al-red" style={{ marginBottom: 12 }}>{formError}</div>}
+          {formSuccess && <div className="sa-alert sa-al-green" style={{ marginBottom: 12 }}>{formSuccess}</div>}
+          <form onSubmit={handleCreate} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 10, alignItems: "end" }}>
+            <div>
+              <label style={{ fontSize: 12, color: "var(--muted)", display: "block", marginBottom: 4 }}>Full name</label>
+              <input
+                className="sa-search-inp"
+                placeholder="Jane Doe"
+                value={newAgent.full_name}
+                onChange={(e) => setNewAgent({ ...newAgent, full_name: e.target.value })}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: "var(--muted)", display: "block", marginBottom: 4 }}>Email</label>
+              <input
+                className="sa-search-inp"
+                type="email"
+                placeholder="agent@example.com"
+                value={newAgent.email}
+                onChange={(e) => setNewAgent({ ...newAgent, email: e.target.value })}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: "var(--muted)", display: "block", marginBottom: 4 }}>Temporary password</label>
+              <input
+                className="sa-search-inp"
+                type="text"
+                placeholder="At least 8 characters"
+                value={newAgent.password}
+                onChange={(e) => setNewAgent({ ...newAgent, password: e.target.value })}
+              />
+            </div>
+            <button type="submit" className="sa-btn sa-btn-purple" disabled={createAgent.isPending}>
+              {createAgent.isPending ? "Creating…" : "Create agent"}
+            </button>
+          </form>
+          <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>
+            Share the temporary password with the agent securely. They can change it later.
+          </div>
+        </div>
+      )}
 
       <div className="sa-stat-grid sa-s4" style={{ marginBottom: 20 }}>
         <div className="sa-stat"><div className="sa-s-lbl">Total agents</div><div className="sa-s-val">{agents.length}</div><div className="sa-s-sub">All active</div></div>

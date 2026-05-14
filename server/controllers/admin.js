@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import { db } from "../db/index.js";
 
 export const getAllApplications = async (req, res) => {
@@ -89,6 +90,28 @@ export const listCustomers = async (req, res) => {
      ORDER BY u.full_name`
   );
   res.json(result.rows);
+};
+
+export const createAgent = async (req, res) => {
+  const { email, password, full_name } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ message: "Email and password are required" });
+  }
+
+  const hashed = await bcrypt.hash(password, 10);
+  try {
+    const result = await db.query(
+      "INSERT INTO users (email, password, role, full_name) VALUES ($1,$2,'agent',$3) RETURNING id, email, role, full_name",
+      [email, hashed, full_name]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    if (err.code === "23505") {
+      return res.status(409).json({ message: "Email already in use" });
+    }
+    throw err;
+  }
 };
 
 export const controlNotifications = async (req, res) => {

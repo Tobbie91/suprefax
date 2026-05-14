@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import useStore from "./store/useStore";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Login from "./components/Login";
+import Signup from "./components/Signup";
 import BorrowerDashboard from "./dashboards/borrower/Dashboard";
 import AgentDashboard from "./dashboards/agent/Dashboard";
 import AdminDashboard from "./dashboards/admin/Dashboard";
@@ -23,6 +24,7 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
 
       <Route
         path="/borrower"

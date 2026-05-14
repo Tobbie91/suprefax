@@ -1,5 +1,5 @@
 import { useState, ReactNode, FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { AxiosError } from "axios";
 import { api } from "../api/client";
 import useStore from "../store/useStore";
@@ -234,9 +234,7 @@ export default function Login() {
 
           <div className="sx-si-footer">
             New to Suprefax?{" "}
-            <a onClick={() => alert("Contact Suprefax to register an account")}>
-              Request access
-            </a>
+            <Link to="/signup">Create a borrower account</Link>
             <br />
             By signing in you agree to our <a>Terms of Service</a> and{" "}
             <a>Privacy Policy</a>
