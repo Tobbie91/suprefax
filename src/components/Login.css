@@ -286,6 +286,37 @@
 .sx-fi:focus {
   border-color: var(--blue);
 }
+.sx-fi-wrap {
+  position: relative;
+}
+.sx-fi-wrap .sx-fi {
+  padding-right: 44px;
+}
+.sx-fi-eye {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 0;
+}
+.sx-fi-eye:hover {
+  color: var(--ink);
+  background: var(--bg);
+}
+.sx-fi-eye svg {
+  width: 18px;
+  height: 18px;
+}
 .sx-form-row {
   display: flex;
   align-items: center;

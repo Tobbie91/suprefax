@@ -19,6 +19,8 @@ export default function Signup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -136,26 +138,66 @@ export default function Signup() {
 
           <div className="sx-fg">
             <label className="sx-fl">Password</label>
-            <input
-              className="sx-fi"
-              type="password"
-              autoComplete="new-password"
-              placeholder="At least 8 characters"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <div className="sx-fi-wrap">
+              <input
+                className="sx-fi"
+                type={showPassword ? "text" : "password"}
+                autoComplete="new-password"
+                placeholder="At least 8 characters"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <button
+                type="button"
+                className="sx-fi-eye"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                onClick={() => setShowPassword((v) => !v)}
+              >
+                {showPassword ? (
+                  <svg viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M3.28 2.22a.75.75 0 00-1.06 1.06l14.5 14.5a.75.75 0 101.06-1.06l-1.745-1.745A10.029 10.029 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074L3.28 2.22zM7.752 6.69l1.092 1.092a2 2 0 012.374 2.374l1.091 1.092a4 4 0 00-4.557-4.558z" clipRule="evenodd" />
+                    <path d="M10.748 13.93l2.523 2.523a9.987 9.987 0 01-3.27.547c-4.478 0-8.268-2.943-9.542-7a10.025 10.025 0 012.358-3.84l3.853 3.852a4 4 0 004.078 4.078z" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                    <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="sx-fg">
             <label className="sx-fl">Confirm password</label>
-            <input
-              className="sx-fi"
-              type="password"
-              autoComplete="new-password"
-              placeholder="Re-enter your password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-            />
+            <div className="sx-fi-wrap">
+              <input
+                className="sx-fi"
+                type={showConfirm ? "text" : "password"}
+                autoComplete="new-password"
+                placeholder="Re-enter your password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+              />
+              <button
+                type="button"
+                className="sx-fi-eye"
+                aria-label={showConfirm ? "Hide password" : "Show password"}
+                onClick={() => setShowConfirm((v) => !v)}
+              >
+                {showConfirm ? (
+                  <svg viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M3.28 2.22a.75.75 0 00-1.06 1.06l14.5 14.5a.75.75 0 101.06-1.06l-1.745-1.745A10.029 10.029 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074L3.28 2.22zM7.752 6.69l1.092 1.092a2 2 0 012.374 2.374l1.091 1.092a4 4 0 00-4.557-4.558z" clipRule="evenodd" />
+                    <path d="M10.748 13.93l2.523 2.523a9.987 9.987 0 01-3.27.547c-4.478 0-8.268-2.943-9.542-7a10.025 10.025 0 012.358-3.84l3.853 3.852a4 4 0 004.078 4.078z" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                    <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
 
           <button
