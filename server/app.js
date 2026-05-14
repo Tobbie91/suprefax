@@ -19,7 +19,7 @@ app.get("/health", (req, res) => res.json({ status: "ok" }));
 const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:5173",
-  process.env.FRONTEND_URL,
+  ...(process.env.FRONTEND_URL || "").split(",").map((s) => s.trim()),
 ].filter(Boolean);
 
 app.use(cors({
