@@ -1,5 +1,5 @@
 import express from "express";
-import { authenticate, authorize, requireVerifiedAgent } from "../middleware/auth.js";
+import { authenticate, authorize, requireVerifiedKyc } from "../middleware/auth.js";
 import { audit } from "../middleware/audit.js";
 import { validate } from "../middleware/validate.js";
 import { applicationSchema, extensionSchema, loginSchema } from "../validation/applicationSchema.js";
@@ -20,26 +20,27 @@ router.post("/auth/login", validate(loginSchema), login);
 router.post("/auth/register", register);
 router.post("/auth/bootstrap-admin", bootstrapAdmin);
 
-// Borrower
-router.get("/borrower/repayments", authenticate, authorize(["borrower"]), getBorrowerRepayments);
-router.get("/borrower/applications", authenticate, authorize(["borrower"]), getBorrowerApplications);
-router.get("/borrower/extensions", authenticate, authorize(["borrower"]), getBorrowerExtensions);
-router.post("/borrower/applications", authenticate, authorize(["borrower"]), createBorrowerApplication);
+// Borrower (requires verified KYC)
+router.get("/borrower/repayments", authenticate, authorize(["borrower"]), requireVerifiedKyc, getBorrowerRepayments);
+router.get("/borrower/applications", authenticate, authorize(["borrower"]), requireVerifiedKyc, getBorrowerApplications);
+router.get("/borrower/extensions", authenticate, authorize(["borrower"]), requireVerifiedKyc, getBorrowerExtensions);
+router.post("/borrower/applications", authenticate, authorize(["borrower"]), requireVerifiedKyc, createBorrowerApplication);
 router.get("/notifications", authenticate, getBorrowerNotifications);
 
-// Agent KYC (allowed before verification)
-router.get("/agent/kyc/status", authenticate, authorize(["agent"]), getKycStatus);
-router.post("/agent/kyc/submit", authenticate, authorize(["agent"]), submitKyc);
+// KYC (open to any authenticated user; required for borrowers and agents)
+router.get("/kyc/status", authenticate, getKycStatus);
+router.post("/kyc/submit", authenticate, submitKyc);
 
 // Agent (requires verified KYC)
-router.get("/agent/applications", authenticate, authorize(["agent"]), requireVerifiedAgent, getAgentApplications);
-router.get("/agent/repayments", authenticate, authorize(["agent"]), requireVerifiedAgent, getAgentRepayments);
+router.get("/agent/applications", authenticate, authorize(["agent"]), requireVerifiedKyc, getAgentApplications);
+router.get("/agent/repayments", authenticate, authorize(["agent"]), requireVerifiedKyc, getAgentRepayments);
 
 // Applications
 router.post(
   "/applications",
   authenticate,
   authorize(["borrower"]),
+  requireVerifiedKyc,
   validate(applicationSchema),
   audit("CREATED_APPLICATION", "applications"),
   createApplication

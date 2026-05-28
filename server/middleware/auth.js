@@ -18,8 +18,8 @@ export const authorize = (roles) => (req, res, next) => {
   next();
 };
 
-export const requireVerifiedAgent = async (req, res, next) => {
-  if (req.user.role !== "agent") return next();
+export const requireVerifiedKyc = async (req, res, next) => {
+  if (req.user.role === "admin") return next();
   const result = await db.query("SELECT kyc_status FROM users WHERE id=$1", [req.user.id]);
   const status = result.rows[0]?.kyc_status;
   if (status !== "verified") {
@@ -27,3 +27,5 @@ export const requireVerifiedAgent = async (req, res, next) => {
   }
   next();
 };
+
+export const requireVerifiedAgent = requireVerifiedKyc;

@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState, FormEvent } from "react";
+import { useState, FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { AxiosError } from "axios";
 import { api } from "../api/client";
 import useStore from "../store/useStore";
 import "./Login.css";
 
-export default function AgentKyc() {
+export default function Kyc() {
   const user = useStore((s) => s.user);
   const setUser = useStore((s) => s.setUser);
   const clearUser = useStore((s) => s.clearUser);
@@ -14,62 +14,14 @@ export default function AgentKyc() {
   const [nin, setNin] = useState("");
   const [bvn, setBvn] = useState("");
   const [address, setAddress] = useState("");
-  const [selfie, setSelfie] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [streaming, setStreaming] = useState(false);
 
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-
-  useEffect(() => {
-    return () => stopCamera();
-  }, []);
-
-  const startCamera = async () => {
-    setError(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: 480, height: 480 },
-        audio: false,
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      setStreaming(true);
-    } catch (err) {
-      setError("Could not access camera. Please allow camera permissions and try again.");
-    }
-  };
-
-  const stopCamera = () => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    setStreaming(false);
-  };
-
-  const captureSelfie = () => {
-    if (!videoRef.current) return;
-    const video = videoRef.current;
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth || 480;
-    canvas.height = video.videoHeight || 480;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    setSelfie(canvas.toDataURL("image/jpeg", 0.85));
-    stopCamera();
-  };
-
-  const retakeSelfie = () => {
-    setSelfie(null);
-    startCamera();
-  };
+  const isAgent = user?.role === "agent";
+  const accent = isAgent ? "var(--purple)" : "var(--blue)";
+  const successRoute = isAgent ? "/agent" : "/borrower";
 
   const handleSignOut = () => {
-    stopCamera();
     localStorage.removeItem("token");
     clearUser();
     navigate("/login");
@@ -82,13 +34,12 @@ export default function AgentKyc() {
     if (!/^\d{11}$/.test(nin)) return setError("NIN must be 11 digits.");
     if (!/^\d{11}$/.test(bvn)) return setError("BVN must be 11 digits.");
     if (!address.trim() || address.trim().length < 5) return setError("Please enter your full residential address.");
-    if (!selfie) return setError("Please capture a live selfie.");
 
     setLoading(true);
     try {
-      await api.post("/agent/kyc/submit", { nin, bvn, address: address.trim(), selfie });
+      await api.post("/kyc/submit", { nin, bvn, address: address.trim() });
       if (user) setUser({ ...user, kyc_status: "verified" });
-      navigate("/agent");
+      navigate(successRoute);
     } catch (err) {
       const axiosErr = err as AxiosError<{ message?: string }>;
       setError(axiosErr.response?.data?.message || "Verification failed. Please check your details and try again.");
@@ -110,15 +61,15 @@ export default function AgentKyc() {
         </div>
 
         <div className="sx-hero-text">
-          <div className="sx-hero-eyebrow">Agent verification</div>
+          <div className="sx-hero-eyebrow">Identity verification</div>
           <div className="sx-hero-headline">
-            Complete your
+            Verify your
             <br />
-            identity check.
+            identity to continue.
           </div>
           <div className="sx-hero-sub">
-            Before you can access the agent portal, we need to verify your NIN, BVN, address and a live selfie.
-            All data is checked through Youverify and stored securely.
+            Before you can access your {isAgent ? "agent portal" : "loan products"}, we need to verify your NIN and BVN.
+            All data is checked through Mono and stored securely.
           </div>
         </div>
 
@@ -128,7 +79,7 @@ export default function AgentKyc() {
             <div className="sx-pl-dot" style={{ background: "#1B4FD8" }} />
             <div>
               <div className="sx-pl-name">National Identification Number</div>
-              <div className="sx-pl-range">11-digit NIN, looked up via NIMC</div>
+              <div className="sx-pl-range">11-digit NIN, looked up via Mono</div>
             </div>
           </div>
           <div className="sx-pl-item">
@@ -145,13 +96,6 @@ export default function AgentKyc() {
               <div className="sx-pl-range">Street, city, state</div>
             </div>
           </div>
-          <div className="sx-pl-item">
-            <div className="sx-pl-dot" style={{ background: "#C2410C" }} />
-            <div>
-              <div className="sx-pl-name">Live selfie</div>
-              <div className="sx-pl-range">Captured in-browser, face-matched to your NIN photo</div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -159,7 +103,7 @@ export default function AgentKyc() {
         <form className="sx-signin-box" onSubmit={handleSubmit}>
           <div className="sx-si-title">Verify your identity</div>
           <div className="sx-si-sub">
-            Signed in as {user?.email}. Complete all four steps to unlock the agent portal.
+            Signed in as {user?.email}. Complete all three fields to unlock your {isAgent ? "agent" : "borrower"} dashboard.
           </div>
 
           {error && <div className="sx-err-box">{error}</div>}
@@ -202,61 +146,10 @@ export default function AgentKyc() {
             />
           </div>
 
-          <div className="sx-fg">
-            <label className="sx-fl">Live selfie</label>
-            <div style={{
-              border: "1.5px dashed var(--border)",
-              borderRadius: "var(--r2)",
-              padding: 16,
-              background: "var(--white)",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 10,
-            }}>
-              {!streaming && !selfie && (
-                <>
-                  <div style={{ fontSize: 12, color: "var(--muted)", textAlign: "center" }}>
-                    We'll open your camera. Look straight at the lens in good lighting.
-                  </div>
-                  <button type="button" className="sx-submit-btn" style={{ background: "var(--blue)", width: "auto", padding: "10px 18px" }} onClick={startCamera}>
-                    Start camera
-                  </button>
-                </>
-              )}
-              {streaming && (
-                <>
-                  <video
-                    ref={videoRef}
-                    playsInline
-                    muted
-                    style={{ width: "100%", maxWidth: 320, borderRadius: "var(--r3)", background: "#000" }}
-                  />
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button type="button" className="sx-submit-btn" style={{ background: "var(--blue)", padding: "8px 16px" }} onClick={captureSelfie}>
-                      Capture
-                    </button>
-                    <button type="button" className="sx-submit-btn" style={{ background: "var(--muted)", padding: "8px 16px" }} onClick={stopCamera}>
-                      Cancel
-                    </button>
-                  </div>
-                </>
-              )}
-              {selfie && (
-                <>
-                  <img src={selfie} alt="Captured selfie" style={{ width: "100%", maxWidth: 320, borderRadius: "var(--r3)" }} />
-                  <button type="button" className="sx-submit-btn" style={{ background: "var(--muted)", padding: "8px 16px" }} onClick={retakeSelfie}>
-                    Retake
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-
           <button
             type="submit"
             className="sx-submit-btn"
-            style={{ background: "var(--purple)" }}
+            style={{ background: accent }}
             disabled={loading}
           >
             {loading ? "Verifying…" : "Submit for verification →"}

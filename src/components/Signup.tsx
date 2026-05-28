@@ -53,7 +53,7 @@ export default function Signup() {
       setUser(data.user);
       initSocket(data.user.id);
 
-      navigate("/borrower");
+      navigate(data.user.kyc_status === "verified" ? "/borrower" : "/borrower/kyc");
     } catch (err) {
       const axiosErr = err as AxiosError<{ message?: string }>;
       setError(

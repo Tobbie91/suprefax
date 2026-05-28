@@ -68,7 +68,7 @@ export const register = async (req, res) => {
   const hashed = await bcrypt.hash(password, 10);
   try {
     const result = await db.query(
-      "INSERT INTO users (email, password, role, full_name) VALUES ($1,$2,'borrower',$3) RETURNING id, email, role, full_name",
+      "INSERT INTO users (email, password, role, full_name, kyc_status) VALUES ($1,$2,'borrower',$3,'pending') RETURNING id, email, role, full_name",
       [email, hashed, full_name]
     );
     res.status(201).json(result.rows[0]);

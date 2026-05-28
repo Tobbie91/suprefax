@@ -34,5 +34,5 @@ services:
         generateValue: true
       - key: FRONTEND_URL
         value: https://suprefax.com,https://www.suprefax.com,https://suprefax.netlify.app
-      - key: YOUVERIFY_KEY
+      - key: MONO_SEC_KEY
         sync: false

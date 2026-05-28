@@ -106,10 +106,9 @@ export default function Login() {
         );
       }
 
-      const dest =
-        data.user.role === "agent" && data.user.kyc_status !== "verified"
-          ? "/agent/kyc"
-          : ROLE_ROUTES[data.user.role] || "/";
+      const needsKyc = data.user.role !== "admin" && data.user.kyc_status !== "verified";
+      const kycRoute = data.user.role === "agent" ? "/agent/kyc" : "/borrower/kyc";
+      const dest = needsKyc ? kycRoute : ROLE_ROUTES[data.user.role] || "/";
       navigate(dest);
     } catch (err) {
       const axiosErr = err as AxiosError<{ message?: string }>;

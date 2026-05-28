@@ -21,8 +21,9 @@ const ProtectedRoute = ({ allowedRole, requireVerifiedKyc, children }: Props) =>
     };
     return <Navigate to={roleMap[user.role] || "/login"} replace />;
   }
-  if (requireVerifiedKyc && user.role === "agent" && user.kyc_status !== "verified") {
-    return <Navigate to="/agent/kyc" replace />;
+  if (requireVerifiedKyc && user.role !== "admin" && user.kyc_status !== "verified") {
+    const kycRoute = user.role === "agent" ? "/agent/kyc" : "/borrower/kyc";
+    return <Navigate to={kycRoute} replace />;
   }
 
   return <>{children}</>;

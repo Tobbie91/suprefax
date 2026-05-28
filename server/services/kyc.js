@@ -1,33 +1,23 @@
-const BASE = "https://api.youverify.co/v2/api";
+const BASE = "https://api.withmono.com";
 
 const post = async (path, body) => {
-  if (!process.env.YOUVERIFY_KEY) {
-    return { ok: false, status: 503, data: { message: "YOUVERIFY_KEY not configured on the server" } };
+  if (!process.env.MONO_SEC_KEY) {
+    return { ok: false, status: 503, data: { message: "MONO_SEC_KEY not configured on the server" } };
   }
   const res = await fetch(`${BASE}${path}`, {
     method: "POST",
     headers: {
-      Token: process.env.YOUVERIFY_KEY,
+      "mono-sec-key": process.env.MONO_SEC_KEY,
+      Accept: "application/json",
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
-  return { ok: res.ok && data?.statusCode !== 400 && data?.success !== false, status: res.status, data };
+  const ok = res.ok && data?.status !== "failed" && !data?.message?.toLowerCase?.().includes("not found");
+  return { ok, status: res.status, data };
 };
 
-export const verifyNIN = (nin) =>
-  post("/identity/ng/nin", { id: nin, isSubjectConsent: true });
+export const verifyNIN = (nin) => post("/v2/lookup/nin", { nin });
 
-export const verifyBVN = (bvn) =>
-  post("/identity/ng/bvn", { id: bvn, isSubjectConsent: true });
-
-export const verifyLiveness = (imageBase64) =>
-  post("/livenesses/photo", { image: imageBase64, isSubjectConsent: true });
-
-export const faceMatch = (selfieBase64, referenceImageUrl) =>
-  post("/identity/face_authentication", {
-    image: selfieBase64,
-    referenceImage: referenceImageUrl,
-    isSubjectConsent: true,
-  });
+export const verifyBVN = (bvn) => post("/v2/lookup/bvn", { bvn });
