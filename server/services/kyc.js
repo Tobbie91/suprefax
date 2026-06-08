@@ -18,6 +18,6 @@ const post = async (path, body) => {
   return { ok, status: res.status, data };
 };
 
-export const verifyNIN = (nin) => post("/v2/lookup/nin", { nin });
+export const verifyNIN = (nin) => post("/v3/lookup/nin", { nin });
 
-export const verifyBVN = (bvn) => post("/v2/lookup/bvn", { bvn });
+export const verifyBVN = (bvn) => post("/v3/lookup/bvn", { bvn });
