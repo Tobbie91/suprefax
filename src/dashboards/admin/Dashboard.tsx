@@ -1,9 +1,8 @@
 import { useState, useMemo, ReactNode, FormEvent } from "react";
 import { useQuery, useMutation, useQueryClient, QueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
 import useStore from "../../store/useStore";
-import { disconnectSocket } from "../../socket";
+import { useSignOut } from "../../hooks/useSignOut";
 import type {
   Application,
   Extension,
@@ -101,15 +100,7 @@ const Icon = ({ children }: { children: ReactNode }) => <svg viewBox="0 0 20 20"
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
   const user = useStore((s) => s.user);
-  const clearUser = useStore((s) => s.clearUser);
-  const navigate = useNavigate();
-
-  const handleSignOut = () => {
-    localStorage.removeItem("token");
-    disconnectSocket();
-    clearUser();
-    navigate("/login");
-  };
+  const handleSignOut = useSignOut();
 
   const today = new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 
@@ -565,6 +556,7 @@ function AgentsPage({ agents, setActiveTab }: { agents: Agent[]; setActiveTab: (
 function CustomersPage({ customers, agents }: { customers: Customer[]; agents: Agent[] }) {
   const [search, setSearch] = useState("");
   const [agentFilter, setAgentFilter] = useState("");
+  const [detail, setDetail] = useState<Customer | null>(null);
 
   const filtered = useMemo(() => {
     return customers.filter((c) => {
@@ -590,7 +582,7 @@ function CustomersPage({ customers, agents }: { customers: Customer[]; agents: A
     <div className="sa-page">
       <div className="sa-page-hdr">
         <div className="sa-page-title">All customers</div>
-        <div className="sa-page-sub">Every borrower on the platform — search and filter</div>
+        <div className="sa-page-sub">Every borrower on the platform — search, filter and view full details</div>
       </div>
 
       <div className="sa-search-bar">
@@ -612,7 +604,13 @@ function CustomersPage({ customers, agents }: { customers: Customer[]; agents: A
               {initials(c.full_name || c.email)}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="sa-p-name">{c.full_name || "—"}</div>
+              <div className="sa-p-name">
+                {c.full_name || "—"}
+                {c.kyc_status && (
+                  <span style={{ marginLeft: 8 }}>{kycBadge(c.kyc_status)}</span>
+                )}
+              </div>
+              <div className="sa-p-sub" style={{ color: "var(--muted)" }}>{c.email}</div>
               <div className="sa-p-sub">
                 {c.application_id ? `${c.application_id.slice(0, 8)} · ${c.product || "—"} · ${fmtMoney(c.amount)}` : "No active loan"}
               </div>
@@ -620,13 +618,121 @@ function CustomersPage({ customers, agents }: { customers: Customer[]; agents: A
                 Agent: {c.agent_name || "Unassigned"}
               </div>
             </div>
-            <div style={{ textAlign: "right", marginRight: 10, flexShrink: 0 }}>
+            <div style={{ textAlign: "right", marginRight: 10, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
               <div style={{ fontSize: 12, color: "var(--muted)" }}>Due {due.label}</div>
-              <div style={{ marginTop: 3 }}>{statusBadge(c.repayment_status || c.status)}</div>
+              {statusBadge(c.repayment_status || c.status)}
+              <button className="sa-btn sa-btn-sm" onClick={() => setDetail(c)}>View details</button>
             </div>
           </div>
         );
       })}
+
+      {detail && <CustomerDetailModal customer={detail} onClose={() => setDetail(null)} />}
+    </div>
+  );
+}
+
+const mask = (s?: string | null): string => {
+  if (!s) return "—";
+  if (s.length <= 4) return s;
+  return `${"•".repeat(s.length - 4)}${s.slice(-4)}`;
+};
+
+const kycBadge = (status: string | null | undefined): ReactNode => {
+  const map: Record<string, { cls: string; label: string }> = {
+    verified: { cls: "sa-bd-green", label: "KYC verified" },
+    pending: { cls: "sa-bd-amber", label: "KYC pending" },
+    rejected: { cls: "sa-bd-red", label: "KYC rejected" },
+  };
+  const m = map[status || ""] || { cls: "sa-bd-gray", label: "KYC unknown" };
+  return <span className={`sa-badge ${m.cls}`}>{m.label}</span>;
+};
+
+function CustomerDetailModal({ customer, onClose }: { customer: Customer; onClose: () => void }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 1000, padding: 20,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "var(--white)", borderRadius: "var(--r)", padding: 28,
+          maxWidth: 560, width: "100%", maxHeight: "90vh", overflowY: "auto",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "var(--ink)" }}>{customer.full_name || "—"}</div>
+            <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 2 }}>{customer.email}</div>
+          </div>
+          <button onClick={onClose} className="sa-btn sa-btn-sm">Close</button>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20 }}>
+          {kycBadge(customer.kyc_status)}
+          {customer.kyc_verified_at && (
+            <span style={{ fontSize: 12, color: "var(--muted)" }}>
+              Verified {fmtDate(customer.kyc_verified_at)}
+            </span>
+          )}
+        </div>
+
+        <Section title="Identity">
+          <Row label="NIN" value={mask(customer.kyc_nin)} />
+          <Row label="BVN" value={mask(customer.kyc_bvn)} />
+          <Row label="Address" value={customer.kyc_address || "—"} />
+          {customer.kyc_rejection_reason && (
+            <Row label="Rejection reason" value={customer.kyc_rejection_reason} />
+          )}
+        </Section>
+
+        <Section title="Account">
+          <Row label="Customer ID" value={customer.id?.slice(0, 8) + "…"} />
+          <Row label="Joined" value={fmtDate(customer.created_at)} />
+          <Row label="Agent" value={customer.agent_name || "Unassigned"} />
+        </Section>
+
+        <Section title="Current loan">
+          {customer.application_id ? (
+            <>
+              <Row label="Application" value={customer.application_id.slice(0, 8) + "…"} />
+              <Row label="Product" value={customer.product || "—"} />
+              <Row label="Amount" value={fmtMoney(customer.amount)} />
+              <Row label="Loan status" value={customer.status || "—"} />
+              <Row label="Repayment due" value={fmtDate(customer.due_date)} />
+              <Row label="Repayment status" value={customer.repayment_status || "—"} />
+            </>
+          ) : (
+            <div style={{ fontSize: 13, color: "var(--muted)" }}>No active loan.</div>
+          )}
+        </Section>
+      </div>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+        {title}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{children}</div>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 13 }}>
+      <span style={{ color: "var(--muted)" }}>{label}</span>
+      <span style={{ color: "var(--ink)", textAlign: "right", wordBreak: "break-word" }}>{value}</span>
     </div>
   );
 }

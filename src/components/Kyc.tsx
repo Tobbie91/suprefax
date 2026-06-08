@@ -3,13 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { AxiosError } from "axios";
 import { api } from "../api/client";
 import useStore from "../store/useStore";
+import { useSignOut } from "../hooks/useSignOut";
 import "./Login.css";
 
 export default function Kyc() {
   const user = useStore((s) => s.user);
   const setUser = useStore((s) => s.setUser);
-  const clearUser = useStore((s) => s.clearUser);
   const navigate = useNavigate();
+  const handleSignOut = useSignOut();
 
   const [nin, setNin] = useState("");
   const [bvn, setBvn] = useState("");
@@ -20,12 +21,6 @@ export default function Kyc() {
   const isAgent = user?.role === "agent";
   const accent = isAgent ? "var(--purple)" : "var(--blue)";
   const successRoute = isAgent ? "/agent" : "/borrower";
-
-  const handleSignOut = () => {
-    localStorage.removeItem("token");
-    clearUser();
-    navigate("/login");
-  };
 
   const handleSubmit = async (e?: FormEvent) => {
     e?.preventDefault();

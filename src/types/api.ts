@@ -119,6 +119,13 @@ export interface Customer {
   id: string;
   email: string;
   full_name: string;
+  created_at?: string;
+  kyc_status?: KycStatus;
+  kyc_address?: string | null;
+  kyc_nin?: string | null;
+  kyc_bvn?: string | null;
+  kyc_verified_at?: string | null;
+  kyc_rejection_reason?: string | null;
   application_id?: string;
   product?: string;
   amount?: string | number;

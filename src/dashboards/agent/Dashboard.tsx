@@ -1,10 +1,10 @@
 import { useState, useMemo, useEffect, useRef, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
 import useStore from "../../store/useStore";
 import { useRealtimeNotifications } from "../../hooks/useRealtimeNotifications";
-import { getSocket, initSocket, disconnectSocket } from "../../socket";
+import { useSignOut } from "../../hooks/useSignOut";
+import { getSocket, initSocket } from "../../socket";
 import type {
   AgentApplication,
   Repayment,
@@ -109,8 +109,7 @@ export default function AgentDashboard() {
   const [chatHistory, setChatHistory] = useState<ChatHistory>({});
 
   const user = useStore((s) => s.user);
-  const clearUser = useStore((s) => s.clearUser);
-  const navigate = useNavigate();
+  const handleSignOut = useSignOut();
   useRealtimeNotifications();
 
   useEffect(() => {
@@ -130,13 +129,6 @@ export default function AgentDashboard() {
     socket.on("message", handler);
     return () => { socket.off("message", handler); };
   }, [activeContact]);
-
-  const handleSignOut = () => {
-    localStorage.removeItem("token");
-    disconnectSocket();
-    clearUser();
-    navigate("/login");
-  };
 
   const today = new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 

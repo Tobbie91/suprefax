@@ -78,7 +78,9 @@ export const listAgents = async (req, res) => {
 
 export const listCustomers = async (req, res) => {
   const result = await db.query(
-    `SELECT u.id, u.email, u.full_name,
+    `SELECT u.id, u.email, u.full_name, u.created_at,
+       u.kyc_status, u.kyc_address, u.kyc_nin, u.kyc_bvn,
+       u.kyc_verified_at, u.kyc_rejection_reason,
        a.id AS application_id, a.product, a.amount, a.status,
        r.due_date, r.status AS repayment_status,
        ag.full_name AS agent_name

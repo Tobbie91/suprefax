@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useMemo, ReactNode, Dispatch, SetStateAction } from "react";
 import { useQuery, useMutation, useQueryClient, QueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
 import { AxiosError } from "axios";
 import { api } from "../../api/client";
 import useStore from "../../store/useStore";
 import { useRealtimeNotifications } from "../../hooks/useRealtimeNotifications";
-import { getSocket, initSocket, disconnectSocket } from "../../socket";
+import { useSignOut } from "../../hooks/useSignOut";
+import { getSocket, initSocket } from "../../socket";
 import type {
   Application,
   Repayment,
@@ -97,8 +97,7 @@ export default function BorrowerDashboard() {
   const [activeContact, setActiveContact] = useState("agent");
 
   const user = useStore((s) => s.user);
-  const clearUser = useStore((s) => s.clearUser);
-  const navigate = useNavigate();
+  const handleSignOut = useSignOut();
   useRealtimeNotifications();
 
   useEffect(() => {
@@ -115,13 +114,6 @@ export default function BorrowerDashboard() {
     socket.on("message", handler);
     return () => { socket.off("message", handler); };
   }, [activeContact]);
-
-  const handleSignOut = () => {
-    localStorage.removeItem("token");
-    disconnectSocket();
-    clearUser();
-    navigate("/login");
-  };
 
   const today = new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 
