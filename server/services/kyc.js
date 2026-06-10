@@ -17,5 +17,12 @@ const post = async (path, body) => {
   return { ok: res.ok && data?.status !== "failed", status: res.status, data };
 };
 
-export const initiateProve = (customer, redirectUrl, meta = {}) =>
-  post("/v1/prove/initiate", { customer, redirect_url: redirectUrl, meta });
+export const initiateProve = ({ customer, redirectUrl, reference, kycLevel = "tier_2", bankAccounts = true, meta = {} }) =>
+  post("/v1/prove/initiate", {
+    customer,
+    redirect_url: redirectUrl,
+    reference,
+    kyc_level: kycLevel,
+    bank_accounts: bankAccounts,
+    meta,
+  });

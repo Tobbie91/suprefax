@@ -1,5 +1,8 @@
+import { randomUUID } from "crypto";
 import { db } from "../db/index.js";
 import { initiateProve } from "../services/kyc.js";
+
+const PHONE_RE = /^0\d{10}$/;
 
 const pickField = (obj, ...keys) => {
   for (const k of keys) {
@@ -13,6 +16,12 @@ const firstFrontendUrl = () => (process.env.FRONTEND_URL || "").split(",")[0].tr
 
 export const initiateKyc = async (req, res) => {
   const userId = req.user.id;
+  const { phone } = req.body || {};
+
+  if (!PHONE_RE.test(phone || "")) {
+    return res.status(400).json({ message: "Please enter a valid Nigerian phone number (11 digits starting with 0)." });
+  }
+
   const result = await db.query("SELECT email, full_name, role FROM users WHERE id=$1", [userId]);
   const user = result.rows[0];
   if (!user) return res.status(404).json({ message: "User not found" });
@@ -20,30 +29,38 @@ export const initiateKyc = async (req, res) => {
   const base = firstFrontendUrl();
   const returnPath = user.role === "agent" ? "/agent/kyc" : "/borrower/kyc";
   const redirectUrl = `${base}${returnPath}?status=mono-return`;
+  const reference = randomUUID();
 
-  const mono = await initiateProve(
-    { name: user.full_name || user.email, email: user.email },
+  const mono = await initiateProve({
+    customer: {
+      name: user.full_name || user.email,
+      email: user.email,
+      phone,
+    },
     redirectUrl,
-    { user_id: userId }
-  );
+    reference,
+    kycLevel: "tier_2",
+    bankAccounts: true,
+    meta: { user_id: userId },
+  });
 
   if (!mono.ok) {
     return res.status(400).json({ message: "Could not start Mono verification", details: mono.data });
   }
 
-  const reference = pickField(mono.data, "data.reference", "reference", "data.id", "id");
+  const providerRef = pickField(mono.data, "data.reference", "reference", "data.id", "id") || reference;
   const monoUrl = pickField(mono.data, "data.mono_url", "mono_url", "data.redirect_url", "redirect_url");
 
-  if (!monoUrl || !reference) {
+  if (!monoUrl) {
     return res.status(502).json({ message: "Unexpected Mono response shape", details: mono.data });
   }
 
   await db.query(
-    "UPDATE users SET kyc_provider_ref=$1, kyc_status='pending', kyc_rejection_reason=NULL WHERE id=$2",
-    [reference, userId]
+    "UPDATE users SET phone=$1, kyc_provider_ref=$2, kyc_status='pending', kyc_rejection_reason=NULL WHERE id=$3",
+    [phone, providerRef, userId]
   );
 
-  res.json({ mono_url: monoUrl, reference });
+  res.json({ mono_url: monoUrl, reference: providerRef });
 };
 
 export const getKycStatus = async (req, res) => {

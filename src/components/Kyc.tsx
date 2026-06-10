@@ -14,6 +14,7 @@ export default function Kyc() {
   const location = useLocation();
   const handleSignOut = useSignOut();
 
+  const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [polling, setPolling] = useState(false);
@@ -64,9 +65,13 @@ export default function Kyc() {
 
   const handleVerify = async () => {
     setError(null);
+    if (!/^0\d{10}$/.test(phone)) {
+      setError("Please enter your Nigerian phone number (11 digits starting with 0).");
+      return;
+    }
     setLoading(true);
     try {
-      const { data } = await api.post<{ mono_url: string; reference: string }>("/kyc/initiate");
+      const { data } = await api.post<{ mono_url: string; reference: string }>("/kyc/initiate", { phone });
       if (!data.mono_url) {
         setError("Could not start verification. Please try again.");
         return;
@@ -154,6 +159,20 @@ export default function Kyc() {
               Your last verification attempt was rejected. You can try again below.
             </div>
           )}
+
+          <div className="sx-fg">
+            <label className="sx-fl">Phone number</label>
+            <input
+              className="sx-fi"
+              type="tel"
+              inputMode="numeric"
+              maxLength={11}
+              placeholder="08012345678"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+              disabled={loading || polling}
+            />
+          </div>
 
           <button
             type="button"
