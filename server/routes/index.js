@@ -9,7 +9,7 @@ import { createApplication, getAgentApplications, getAgentRepayments } from "../
 import { getBorrowerRepayments, getBorrowerNotifications, getBorrowerApplications, getBorrowerExtensions, createBorrowerApplication } from "../controllers/borrower.js";
 import { requestExtension, approveExtension, declineExtension } from "../controllers/extensions.js";
 import { sign, getSignatures } from "../controllers/signature.js";
-import { getAllApplications, getExtensions, getAuditLogs, getAnalytics, controlNotifications, listAgents, listCustomers, createAgent, resetNonAdminUsers } from "../controllers/admin.js";
+import { getAllApplications, getExtensions, getAuditLogs, getAnalytics, controlNotifications, listAgents, listCustomers, createAgent, resetNonAdminUsers, manuallyVerifyKyc } from "../controllers/admin.js";
 import { getDocument } from "../controllers/documents.js";
 import { initiateKyc, getKycStatus, handleProveWebhook } from "../controllers/kyc.js";
 
@@ -86,6 +86,7 @@ router.post("/admin/agents", authenticate, authorize(["admin"]), createAgent);
 router.get("/admin/customers", authenticate, authorize(["admin"]), listCustomers);
 router.post("/admin/notifications/control", authenticate, authorize(["admin"]), controlNotifications);
 router.post("/admin/reset-non-admin", authenticate, authorize(["admin"]), resetNonAdminUsers);
+router.post("/admin/verify-kyc", authenticate, authorize(["admin"]), manuallyVerifyKyc);
 router.get("/audit", authenticate, authorize(["admin"]), getAuditLogs);
 
 export default router;

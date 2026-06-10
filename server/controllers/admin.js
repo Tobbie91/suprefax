@@ -116,6 +116,27 @@ export const createAgent = async (req, res) => {
   }
 };
 
+export const manuallyVerifyKyc = async (req, res) => {
+  const { email } = req.body || {};
+  if (!email) return res.status(400).json({ message: "Email is required" });
+
+  const result = await db.query(
+    `UPDATE users
+       SET kyc_status='verified',
+           kyc_verified_at=NOW(),
+           kyc_rejection_reason=NULL
+     WHERE email=$1 AND role <> 'admin'
+     RETURNING id, email, role, kyc_status`,
+    [email]
+  );
+
+  if (result.rows.length === 0) {
+    return res.status(404).json({ message: "No matching non-admin user" });
+  }
+
+  res.json(result.rows[0]);
+};
+
 export const resetNonAdminUsers = async (req, res) => {
   const client = await db.connect();
   try {

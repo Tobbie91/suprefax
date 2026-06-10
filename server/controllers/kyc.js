@@ -39,8 +39,8 @@ export const initiateKyc = async (req, res) => {
     },
     redirectUrl,
     reference,
-    kycLevel: "tier_2",
-    bankAccounts: true,
+    kycLevel: "tier_1",
+    bankAccounts: false,
     meta: { user_id: userId },
   });
 
