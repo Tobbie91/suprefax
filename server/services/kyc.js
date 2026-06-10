@@ -14,10 +14,8 @@ const post = async (path, body) => {
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
-  const ok = res.ok && data?.status !== "failed" && !data?.message?.toLowerCase?.().includes("not found");
-  return { ok, status: res.status, data };
+  return { ok: res.ok && data?.status !== "failed", status: res.status, data };
 };
 
-export const verifyNIN = (nin) => post("/v3/lookup/nin", { nin });
-
-export const verifyBVN = (bvn) => post("/v3/lookup/bvn", { bvn });
+export const initiateProve = (customer, redirectUrl, meta = {}) =>
+  post("/v1/prove/initiate", { customer, redirect_url: redirectUrl, meta });

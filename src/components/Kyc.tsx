@@ -1,43 +1,84 @@
-import { useState, FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { AxiosError } from "axios";
 import { api } from "../api/client";
 import useStore from "../store/useStore";
 import { useSignOut } from "../hooks/useSignOut";
+import type { KycStatus } from "../types/api";
 import "./Login.css";
 
 export default function Kyc() {
   const user = useStore((s) => s.user);
   const setUser = useStore((s) => s.setUser);
   const navigate = useNavigate();
+  const location = useLocation();
   const handleSignOut = useSignOut();
 
-  const [nin, setNin] = useState("");
-  const [bvn, setBvn] = useState("");
-  const [address, setAddress] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [polling, setPolling] = useState(false);
+  const pollRef = useRef<number | null>(null);
 
   const isAgent = user?.role === "agent";
   const accent = isAgent ? "var(--purple)" : "var(--blue)";
   const successRoute = isAgent ? "/agent" : "/borrower";
 
-  const handleSubmit = async (e?: FormEvent) => {
-    e?.preventDefault();
+  const stopPolling = () => {
+    if (pollRef.current) {
+      window.clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    setPolling(false);
+  };
+
+  useEffect(() => {
+    return stopPolling;
+  }, []);
+
+  const refreshStatus = async (): Promise<KycStatus | undefined> => {
+    try {
+      const { data } = await api.get<{ kyc_status: KycStatus; kyc_rejection_reason?: string }>("/kyc/status");
+      if (user && data.kyc_status) setUser({ ...user, kyc_status: data.kyc_status });
+      if (data.kyc_status === "verified") {
+        stopPolling();
+        navigate(successRoute);
+      } else if (data.kyc_status === "rejected") {
+        stopPolling();
+        setError(data.kyc_rejection_reason || "Verification was rejected. You can try again.");
+      }
+      return data.kyc_status;
+    } catch (err) {
+      console.warn("status fetch failed", err);
+      return undefined;
+    }
+  };
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("status") === "mono-return") {
+      setPolling(true);
+      refreshStatus();
+      pollRef.current = window.setInterval(refreshStatus, 4000);
+    }
+  }, [location.search]);
+
+  const handleVerify = async () => {
     setError(null);
-
-    if (!/^\d{11}$/.test(nin)) return setError("NIN must be 11 digits.");
-    if (!/^\d{11}$/.test(bvn)) return setError("BVN must be 11 digits.");
-    if (!address.trim() || address.trim().length < 5) return setError("Please enter your full residential address.");
-
     setLoading(true);
     try {
-      await api.post("/kyc/submit", { nin, bvn, address: address.trim() });
-      if (user) setUser({ ...user, kyc_status: "verified" });
-      navigate(successRoute);
+      const { data } = await api.post<{ mono_url: string; reference: string }>("/kyc/initiate");
+      if (!data.mono_url) {
+        setError("Could not start verification. Please try again.");
+        return;
+      }
+      window.location.href = data.mono_url;
     } catch (err) {
-      const axiosErr = err as AxiosError<{ message?: string }>;
-      setError(axiosErr.response?.data?.message || "Verification failed. Please check your details and try again.");
+      const axiosErr = err as AxiosError<{ message?: string; details?: { message?: string } }>;
+      setError(
+        axiosErr.response?.data?.details?.message ||
+          axiosErr.response?.data?.message ||
+          "Could not start verification. Please try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -58,102 +99,78 @@ export default function Kyc() {
         <div className="sx-hero-text">
           <div className="sx-hero-eyebrow">Identity verification</div>
           <div className="sx-hero-headline">
-            Verify your
+            Verify with
             <br />
-            identity to continue.
+            your bank.
           </div>
           <div className="sx-hero-sub">
-            Before you can access your {isAgent ? "agent portal" : "loan products"}, we need to verify your NIN and BVN.
-            All data is checked through Mono and stored securely.
+            Suprefax uses Mono to verify your identity through your bank. We never see your bank password, and your data stays encrypted.
           </div>
         </div>
 
         <div className="sx-products-list">
-          <div className="sx-pl-label">What we'll verify</div>
+          <div className="sx-pl-label">How it works</div>
           <div className="sx-pl-item">
             <div className="sx-pl-dot" style={{ background: "#1B4FD8" }} />
             <div>
-              <div className="sx-pl-name">National Identification Number</div>
-              <div className="sx-pl-range">11-digit NIN, looked up via Mono</div>
+              <div className="sx-pl-name">1. Click verify</div>
+              <div className="sx-pl-range">You'll be taken to Mono's secure verification page.</div>
             </div>
           </div>
           <div className="sx-pl-item">
             <div className="sx-pl-dot" style={{ background: "#0F7B6C" }} />
             <div>
-              <div className="sx-pl-name">Bank Verification Number</div>
-              <div className="sx-pl-range">11-digit BVN, matched to your bank record</div>
+              <div className="sx-pl-name">2. Pick your bank</div>
+              <div className="sx-pl-range">Log in to confirm your identity directly with your bank.</div>
             </div>
           </div>
           <div className="sx-pl-item">
             <div className="sx-pl-dot" style={{ background: "#6D28D9" }} />
             <div>
-              <div className="sx-pl-name">Residential address</div>
-              <div className="sx-pl-range">Street, city, state</div>
+              <div className="sx-pl-name">3. Done in seconds</div>
+              <div className="sx-pl-range">We'll unlock your {isAgent ? "agent portal" : "borrower dashboard"} once verified.</div>
             </div>
           </div>
         </div>
       </div>
 
       <div className="sx-right">
-        <form className="sx-signin-box" onSubmit={handleSubmit}>
+        <div className="sx-signin-box">
           <div className="sx-si-title">Verify your identity</div>
           <div className="sx-si-sub">
-            Signed in as {user?.email}. Complete all three fields to unlock your {isAgent ? "agent" : "borrower"} dashboard.
+            Signed in as {user?.email}. Verification is a one-time step.
           </div>
 
           {error && <div className="sx-err-box">{error}</div>}
 
-          <div className="sx-fg">
-            <label className="sx-fl">NIN</label>
-            <input
-              className="sx-fi"
-              type="text"
-              inputMode="numeric"
-              maxLength={11}
-              placeholder="11-digit NIN"
-              value={nin}
-              onChange={(e) => setNin(e.target.value.replace(/\D/g, ""))}
-            />
-          </div>
+          {polling && (
+            <div className="sx-info-box">
+              Waiting for verification to complete… You can leave this page open.
+            </div>
+          )}
 
-          <div className="sx-fg">
-            <label className="sx-fl">BVN</label>
-            <input
-              className="sx-fi"
-              type="text"
-              inputMode="numeric"
-              maxLength={11}
-              placeholder="11-digit BVN"
-              value={bvn}
-              onChange={(e) => setBvn(e.target.value.replace(/\D/g, ""))}
-            />
-          </div>
-
-          <div className="sx-fg">
-            <label className="sx-fl">Residential address</label>
-            <textarea
-              className="sx-fi"
-              rows={2}
-              placeholder="Street, city, state"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              style={{ resize: "vertical", fontFamily: "var(--font)" }}
-            />
-          </div>
+          {user?.kyc_status === "rejected" && !error && (
+            <div className="sx-err-box">
+              Your last verification attempt was rejected. You can try again below.
+            </div>
+          )}
 
           <button
-            type="submit"
+            type="button"
             className="sx-submit-btn"
-            style={{ background: accent }}
-            disabled={loading}
+            style={{ background: accent, marginTop: 12 }}
+            onClick={handleVerify}
+            disabled={loading || polling}
           >
-            {loading ? "Verifying…" : "Submit for verification →"}
+            {loading ? "Starting verification…" : polling ? "Verification in progress…" : "Verify with my bank →"}
           </button>
 
-          <div className="sx-si-footer">
+          <div className="sx-si-footer" style={{ marginTop: 20 }}>
+            Powered by Mono · Bank-grade encryption
+            <br />
             Need to come back later? <a onClick={handleSignOut} style={{ cursor: "pointer" }}>Sign out</a>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );

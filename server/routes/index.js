@@ -11,7 +11,7 @@ import { requestExtension, approveExtension, declineExtension } from "../control
 import { sign, getSignatures } from "../controllers/signature.js";
 import { getAllApplications, getExtensions, getAuditLogs, getAnalytics, controlNotifications, listAgents, listCustomers, createAgent } from "../controllers/admin.js";
 import { getDocument } from "../controllers/documents.js";
-import { submitKyc, getKycStatus } from "../controllers/kyc.js";
+import { initiateKyc, getKycStatus, handleProveWebhook } from "../controllers/kyc.js";
 
 const router = express.Router();
 
@@ -27,9 +27,10 @@ router.get("/borrower/extensions", authenticate, authorize(["borrower"]), requir
 router.post("/borrower/applications", authenticate, authorize(["borrower"]), requireVerifiedKyc, createBorrowerApplication);
 router.get("/notifications", authenticate, getBorrowerNotifications);
 
-// KYC (open to any authenticated user; required for borrowers and agents)
+// KYC (Mono Prove flow). Initiate is auth-gated; webhook is public.
 router.get("/kyc/status", authenticate, getKycStatus);
-router.post("/kyc/submit", authenticate, submitKyc);
+router.post("/kyc/initiate", authenticate, initiateKyc);
+router.post("/webhooks/mono/prove", handleProveWebhook);
 
 // Agent (requires verified KYC)
 router.get("/agent/applications", authenticate, authorize(["agent"]), requireVerifiedKyc, getAgentApplications);

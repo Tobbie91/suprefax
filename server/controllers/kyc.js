@@ -1,67 +1,109 @@
 import { db } from "../db/index.js";
-import { verifyNIN, verifyBVN } from "../services/kyc.js";
+import { initiateProve } from "../services/kyc.js";
 
-const NIN_RE = /^\d{11}$/;
-const BVN_RE = /^\d{11}$/;
-
-export const submitKyc = async (req, res) => {
-  const userId = req.user?.id;
-  const { nin, bvn, address } = req.body || {};
-
-  if (!NIN_RE.test(nin || "")) {
-    return res.status(400).json({ message: "NIN must be 11 digits." });
+const pickField = (obj, ...keys) => {
+  for (const k of keys) {
+    const v = k.split(".").reduce((o, p) => (o ? o[p] : undefined), obj);
+    if (v != null && v !== "") return v;
   }
-  if (!BVN_RE.test(bvn || "")) {
-    return res.status(400).json({ message: "BVN must be 11 digits." });
-  }
-  if (!address || address.trim().length < 5) {
-    return res.status(400).json({ message: "Address is required." });
-  }
+  return null;
+};
 
-  const ninCheck = await verifyNIN(nin);
-  if (!ninCheck.ok) {
-    await markRejected(userId, `NIN lookup failed: ${ninCheck.data?.message || "unknown"}`);
-    return res.status(400).json({ message: "NIN verification failed.", details: ninCheck.data });
-  }
+const firstFrontendUrl = () => (process.env.FRONTEND_URL || "").split(",")[0].trim() || "";
 
-  const bvnCheck = await verifyBVN(bvn);
-  if (!bvnCheck.ok) {
-    await markRejected(userId, `BVN lookup failed: ${bvnCheck.data?.message || "unknown"}`);
-    return res.status(400).json({ message: "BVN verification failed.", details: bvnCheck.data });
-  }
+export const initiateKyc = async (req, res) => {
+  const userId = req.user.id;
+  const result = await db.query("SELECT email, full_name, role FROM users WHERE id=$1", [userId]);
+  const user = result.rows[0];
+  if (!user) return res.status(404).json({ message: "User not found" });
 
-  const ninRef = ninCheck.data?.data?.nin || ninCheck.data?.data?.id || null;
-  const bvnRef = bvnCheck.data?.data?.bvn || bvnCheck.data?.data?.id || null;
-  const providerRef = [ninRef, bvnRef].filter(Boolean).join(",");
+  const base = firstFrontendUrl();
+  const returnPath = user.role === "agent" ? "/agent/kyc" : "/borrower/kyc";
+  const redirectUrl = `${base}${returnPath}?status=mono-return`;
 
-  await db.query(
-    `UPDATE users
-       SET kyc_status='verified',
-           kyc_nin=$1,
-           kyc_bvn=$2,
-           kyc_address=$3,
-           kyc_verified_at=NOW(),
-           kyc_provider_ref=$4,
-           kyc_rejection_reason=NULL
-     WHERE id=$5`,
-    [nin, bvn, address.trim(), providerRef, userId]
+  const mono = await initiateProve(
+    { name: user.full_name || user.email, email: user.email },
+    redirectUrl,
+    { user_id: userId }
   );
 
-  res.json({ kyc_status: "verified" });
+  if (!mono.ok) {
+    return res.status(400).json({ message: "Could not start Mono verification", details: mono.data });
+  }
+
+  const reference = pickField(mono.data, "data.reference", "reference", "data.id", "id");
+  const monoUrl = pickField(mono.data, "data.mono_url", "mono_url", "data.redirect_url", "redirect_url");
+
+  if (!monoUrl || !reference) {
+    return res.status(502).json({ message: "Unexpected Mono response shape", details: mono.data });
+  }
+
+  await db.query(
+    "UPDATE users SET kyc_provider_ref=$1, kyc_status='pending', kyc_rejection_reason=NULL WHERE id=$2",
+    [reference, userId]
+  );
+
+  res.json({ mono_url: monoUrl, reference });
 };
 
 export const getKycStatus = async (req, res) => {
   const result = await db.query(
-    "SELECT kyc_status, kyc_rejection_reason FROM users WHERE id=$1",
+    "SELECT kyc_status, kyc_rejection_reason, kyc_verified_at FROM users WHERE id=$1",
     [req.user.id]
   );
   res.json(result.rows[0] || { kyc_status: null });
 };
 
-const markRejected = async (userId, reason) => {
-  if (!userId) return;
-  await db.query(
-    "UPDATE users SET kyc_status='rejected', kyc_rejection_reason=$1 WHERE id=$2",
-    [reason, userId]
-  );
+export const handleProveWebhook = async (req, res) => {
+  res.status(200).json({ received: true });
+
+  try {
+    const payload = req.body || {};
+    const event = pickField(payload, "event", "type") || "";
+    const data = payload.data || payload;
+    const reference = pickField(data, "reference", "id") || pickField(payload, "reference");
+    if (!reference) {
+      console.warn("[prove webhook] missing reference", JSON.stringify(payload).slice(0, 500));
+      return;
+    }
+
+    const row = await db.query("SELECT id FROM users WHERE kyc_provider_ref=$1", [reference]);
+    const userId = row.rows[0]?.id;
+    if (!userId) {
+      console.warn("[prove webhook] no user matched reference", reference);
+      return;
+    }
+
+    const isSuccess =
+      /success|verified|complete|approved/i.test(String(event)) ||
+      data.status === "successful" ||
+      data.status === "verified" ||
+      data.status === "completed";
+
+    if (isSuccess) {
+      const identity = data.identity || data.customer || data;
+      const nin = pickField(identity, "nin", "nin_data.nin");
+      const bvn = pickField(identity, "bvn", "bvn_data.bvn");
+      const address = pickField(identity, "address", "residential_address", "house_address");
+      await db.query(
+        `UPDATE users
+           SET kyc_status='verified',
+               kyc_nin=COALESCE($1, kyc_nin),
+               kyc_bvn=COALESCE($2, kyc_bvn),
+               kyc_address=COALESCE($3, kyc_address),
+               kyc_verified_at=NOW(),
+               kyc_rejection_reason=NULL
+         WHERE id=$4`,
+        [nin, bvn, address, userId]
+      );
+    } else {
+      const reason = pickField(data, "message", "reason") || event || "Verification failed";
+      await db.query(
+        "UPDATE users SET kyc_status='rejected', kyc_rejection_reason=$1 WHERE id=$2",
+        [reason, userId]
+      );
+    }
+  } catch (err) {
+    console.error("[prove webhook] handler error", err);
+  }
 };
