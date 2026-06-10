@@ -116,6 +116,44 @@ export const createAgent = async (req, res) => {
   }
 };
 
+export const resetNonAdminUsers = async (req, res) => {
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    const apps = await client.query(
+      `SELECT id FROM applications
+        WHERE borrower_id IN (SELECT id FROM users WHERE role <> 'admin')
+           OR agent_id IN (SELECT id FROM users WHERE role <> 'admin')`
+    );
+    const appIds = apps.rows.map((r) => r.id);
+
+    if (appIds.length > 0) {
+      await client.query("DELETE FROM repayments WHERE application_id = ANY($1::uuid[])", [appIds]);
+      await client.query("DELETE FROM extensions WHERE application_id = ANY($1::uuid[])", [appIds]);
+      await client.query("DELETE FROM signatures WHERE application_id = ANY($1::uuid[])", [appIds]);
+      await client.query("DELETE FROM applications WHERE id = ANY($1::uuid[])", [appIds]);
+    }
+
+    await client.query(
+      "DELETE FROM notifications WHERE user_id IN (SELECT id FROM users WHERE role <> 'admin')"
+    );
+    await client.query(
+      "DELETE FROM messages WHERE sender_id IN (SELECT id FROM users WHERE role <> 'admin')"
+    );
+    const result = await client.query(
+      "DELETE FROM users WHERE role <> 'admin' RETURNING id, email, role"
+    );
+
+    await client.query("COMMIT");
+    res.json({ deleted_users: result.rows.length, users: result.rows });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
 export const controlNotifications = async (req, res) => {
   const { application_id, paused } = req.body;
 
