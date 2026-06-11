@@ -367,10 +367,11 @@ function BasicsStep({ state, update, baseline }: { state: WizardState; update: (
       <Field label="Amount (₦)">
         <input
           className="sb-m-fi"
-          type="number"
-          placeholder="e.g. 500000"
-          value={state.amount}
-          onChange={(e) => update({ amount: e.target.value })}
+          type="text"
+          inputMode="numeric"
+          placeholder="e.g. 500,000"
+          value={state.amount ? Number(state.amount).toLocaleString() : ""}
+          onChange={(e) => update({ amount: e.target.value.replace(/\D/g, "") })}
         />
       </Field>
 
