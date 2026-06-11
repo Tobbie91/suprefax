@@ -41,11 +41,42 @@ export interface Application {
 
 export interface AgentApplication {
   application_id: string;
+  borrower_id?: string;
   borrower_name: string;
+  borrower_email?: string;
   product: string;
   amount: string | number;
+  purpose?: string;
+  duration_days?: number;
+  int_passport_no?: string;
+  borrower_address?: string;
+  bank_name?: string;
+  bank_account_number?: string;
+  bank_account_name?: string;
+  nok_name?: string;
+  nok_phone?: string;
+  nok_address?: string;
+  nok_relationship?: string;
+  interest_rate_monthly_pct?: number | string;
+  total_repayable_naira?: number | string;
+  quoted_at?: string;
+  created_at?: string;
   due_date?: string;
   status: string;
+  repayment_status?: string;
+}
+
+export interface ApplicationDocument {
+  id: string;
+  doc_type: string;
+  cloudinary_url: string;
+  uploaded_at: string;
+}
+
+export interface LoanBaseline {
+  product_key: string;
+  duration_days: number;
+  baseline_monthly_rate_pct: number;
 }
 
 export type RepaymentStatus = "due" | "overdue" | "paid";

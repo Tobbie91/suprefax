@@ -31,8 +31,58 @@ CREATE TABLE IF NOT EXISTS applications (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS purpose TEXT;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS duration_days INTEGER;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS int_passport_no TEXT;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS borrower_address TEXT;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS bank_name TEXT;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS bank_account_number TEXT;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS bank_account_name TEXT;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS nok_name TEXT;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS nok_phone TEXT;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS nok_address TEXT;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS nok_relationship TEXT;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS declaration_accepted_at TIMESTAMP;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS interest_rate_monthly_pct NUMERIC;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS total_repayable_naira NUMERIC;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS quoted_at TIMESTAMP;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS borrower_decision_at TIMESTAMP;
+
 CREATE INDEX IF NOT EXISTS idx_applications_borrower ON applications(borrower_id);
 CREATE INDEX IF NOT EXISTS idx_applications_agent ON applications(agent_id);
+CREATE INDEX IF NOT EXISTS idx_applications_status ON applications(status);
+
+CREATE TABLE IF NOT EXISTS application_documents (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  application_id UUID REFERENCES applications(id) ON DELETE CASCADE,
+  doc_type TEXT NOT NULL,
+  cloudinary_url TEXT NOT NULL,
+  uploaded_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_appdocs_application ON application_documents(application_id);
+
+CREATE TABLE IF NOT EXISTS loan_baselines (
+  product_key TEXT NOT NULL,
+  duration_days INTEGER NOT NULL,
+  baseline_monthly_rate_pct NUMERIC NOT NULL,
+  PRIMARY KEY (product_key, duration_days)
+);
+
+INSERT INTO loan_baselines (product_key, duration_days, baseline_monthly_rate_pct) VALUES
+  ('Student POF',          30, 8),
+  ('Student POF',          60, 7.5),
+  ('Student POF',          90, 7),
+  ('Travel POF',           30, 10),
+  ('Travel POF',           60, 9),
+  ('Travel POF',           90, 8.5),
+  ('LPO financing',        30, 12),
+  ('LPO financing',        60, 11),
+  ('LPO financing',        90, 10),
+  ('Soft business loan',   30, 9),
+  ('Soft business loan',   60, 8.5),
+  ('Soft business loan',   90, 8)
+ON CONFLICT DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS repayments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

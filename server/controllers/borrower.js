@@ -27,35 +27,83 @@ export const getBorrowerExtensions = async (req, res) => {
   res.json(result.rows);
 };
 
-export const createBorrowerApplication = async (req, res) => {
-  const { product, amount } = req.body;
+const REQUIRED_FIELDS = [
+  "agent_id", "product", "amount", "duration_days", "purpose",
+  "int_passport_no", "borrower_address",
+  "bank_name", "bank_account_number", "bank_account_name",
+  "nok_name", "nok_phone", "nok_address", "nok_relationship",
+  "declaration_accepted",
+];
 
-  if (!product || !amount) {
-    return res.status(400).json({ message: "product and amount are required" });
+export const createBorrowerApplication = async (req, res) => {
+  const b = req.body || {};
+  const missing = REQUIRED_FIELDS.filter((k) => b[k] === undefined || b[k] === "" || b[k] === null);
+  if (missing.length > 0) {
+    return res.status(400).json({ message: `Missing required fields: ${missing.join(", ")}` });
+  }
+  if (b.declaration_accepted !== true) {
+    return res.status(400).json({ message: "You must accept all declarations." });
   }
 
-  // Auto-assign first available agent
-  const agentResult = await db.query(
-    "SELECT id FROM users WHERE role = 'agent' ORDER BY created_at LIMIT 1"
+  const agentCheck = await db.query(
+    "SELECT id FROM users WHERE id=$1 AND role='agent' AND kyc_status='verified'",
+    [b.agent_id]
   );
-  const agent = agentResult.rows[0];
-  if (!agent) return res.status(400).json({ message: "No agent available" });
+  if (agentCheck.rows.length === 0) {
+    return res.status(400).json({ message: "Selected agent is not available." });
+  }
 
   const result = await db.query(
-    `INSERT INTO applications (borrower_id, agent_id, product, amount, status)
-     VALUES ($1, $2, $3, $4, 'pending') RETURNING *`,
-    [req.user.id, agent.id, product, Number(amount)]
+    `INSERT INTO applications (
+       borrower_id, agent_id, product, amount, duration_days, purpose,
+       int_passport_no, borrower_address,
+       bank_name, bank_account_number, bank_account_name,
+       nok_name, nok_phone, nok_address, nok_relationship,
+       declaration_accepted_at, status
+     ) VALUES (
+       $1, $2, $3, $4, $5, $6,
+       $7, $8,
+       $9, $10, $11,
+       $12, $13, $14, $15,
+       NOW(), 'awaiting_quote'
+     ) RETURNING *`,
+    [
+      req.user.id, b.agent_id, b.product, Number(b.amount), Number(b.duration_days), b.purpose,
+      b.int_passport_no, b.borrower_address,
+      b.bank_name, b.bank_account_number, b.bank_account_name,
+      b.nok_name, b.nok_phone, b.nok_address, b.nok_relationship,
+    ]
   );
 
-  // Seed the three party signatures so the signature tracker has rows
-  const app = result.rows[0];
-  await db.query(
-    `INSERT INTO signatures (application_id, party, signed) VALUES
-     ($1, 'borrower', false), ($1, 'agent', false), ($1, 'admin', false)`,
-    [app.id]
-  );
+  res.status(201).json(result.rows[0]);
+};
 
-  res.status(201).json(app);
+export const acceptQuote = async (req, res) => {
+  const result = await db.query(
+    `UPDATE applications
+       SET status='quote_accepted', borrower_decision_at=NOW()
+     WHERE id=$1 AND borrower_id=$2 AND status='quote_sent'
+     RETURNING *`,
+    [req.params.id, req.user.id]
+  );
+  if (result.rows.length === 0) {
+    return res.status(404).json({ message: "No quote to accept on this application." });
+  }
+  res.json(result.rows[0]);
+};
+
+export const declineQuote = async (req, res) => {
+  const result = await db.query(
+    `UPDATE applications
+       SET status='quote_declined', borrower_decision_at=NOW()
+     WHERE id=$1 AND borrower_id=$2 AND status='quote_sent'
+     RETURNING *`,
+    [req.params.id, req.user.id]
+  );
+  if (result.rows.length === 0) {
+    return res.status(404).json({ message: "No quote to decline on this application." });
+  }
+  res.json(result.rows[0]);
 };
 
 export const getBorrowerRepayments = async (req, res) => {

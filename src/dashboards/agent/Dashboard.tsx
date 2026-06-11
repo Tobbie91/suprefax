@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { api } from "../../api/client";
 import useStore from "../../store/useStore";
 import { useRealtimeNotifications } from "../../hooks/useRealtimeNotifications";
@@ -7,14 +7,16 @@ import { useSignOut } from "../../hooks/useSignOut";
 import { getSocket, initSocket } from "../../socket";
 import type {
   AgentApplication,
+  ApplicationDocument,
+  LoanBaseline,
   Repayment,
   Notification,
   ChatMessage,
 } from "../../types/api";
 import "./Agent.css";
 
-type TabKey = "home" | "customers" | "msgs" | "notifs";
-type BadgeKey = "msgs" | "notifs";
+type TabKey = "home" | "quotes" | "customers" | "msgs" | "notifs";
+type BadgeKey = "msgs" | "notifs" | "quotes";
 
 interface TabDef {
   key: TabKey;
@@ -24,6 +26,7 @@ interface TabDef {
 
 const TABS: TabDef[] = [
   { key: "home", label: "Dashboard" },
+  { key: "quotes", label: "Awaiting quote", badgeKey: "quotes" },
   { key: "customers", label: "My customers" },
   { key: "msgs", label: "Messages", badgeKey: "msgs" },
   { key: "notifs", label: "Notifications", badgeKey: "notifs" },
@@ -39,6 +42,7 @@ interface SidebarItem {
 
 const SIDEBAR_ITEMS: SidebarItem[] = [
   { key: "home", label: "Dashboard", icon: <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h4a1 1 0 001-1v-3h2v3a1 1 0 001 1h4a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /> },
+  { key: "quotes", label: "Awaiting quote", badgeKey: "quotes", badgeClass: "sg-b-amber", icon: <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" /> },
   { key: "customers", label: "My customers", icon: <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zm8 0a3 3 0 11-6 0 3 3 0 016 0zM4.5 16a4.5 4.5 0 019 0H4.5zM14 16h5.5a4.5 4.5 0 00-9 0H14z" /> },
   { key: "msgs", label: "Messages", badgeKey: "msgs", badgeClass: "sg-b-red", icon: <path d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7z" /> },
   { key: "notifs", label: "Notifications", badgeKey: "notifs", badgeClass: "sg-b-red", icon: <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zm0 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" /> },
@@ -132,10 +136,19 @@ export default function AgentDashboard() {
 
   const today = new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 
+  const queryClient = useQueryClient();
   const { data: applications = [] } = useQuery<AgentApplication[]>({
     queryKey: ["agent-applications"],
     queryFn: () => api.get("/agent/applications").then((r) => r.data),
   });
+
+  const { data: baselines = [] } = useQuery<LoanBaseline[]>({
+    queryKey: ["loan-baselines"],
+    queryFn: () => api.get("/loan-baselines").then((r) => r.data),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const awaitingQuote = applications.filter((a) => a.status === "awaiting_quote");
 
   const { data: repayments = [] } = useQuery<Repayment[]>({
     queryKey: ["agent-repayments"],
@@ -189,6 +202,7 @@ export default function AgentDashboard() {
   const badgeCounts: Record<BadgeKey, number> = {
     msgs: 0,
     notifs: notifications.length,
+    quotes: awaitingQuote.length,
   };
 
   return (
@@ -287,6 +301,13 @@ export default function AgentDashboard() {
               portfolio={portfolio}
               setActiveTab={setActiveTab}
               setActiveContact={setActiveContact}
+            />
+          )}
+          {activeTab === "quotes" && (
+            <QuotesPage
+              applications={awaitingQuote}
+              baselines={baselines}
+              queryClient={queryClient}
             />
           )}
           {activeTab === "customers" && (
@@ -633,6 +654,149 @@ function NotificationsPage({ notifications, setActiveTab }: NotifPageProps) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+interface QuotesPageProps {
+  applications: AgentApplication[];
+  baselines: LoanBaseline[];
+  queryClient: ReturnType<typeof useQueryClient>;
+}
+
+function QuotesPage({ applications, baselines, queryClient }: QuotesPageProps) {
+  if (applications.length === 0) {
+    return (
+      <div className="sg-page">
+        <div className="sg-page-hdr">
+          <div className="sg-page-title">Awaiting your quote</div>
+          <div className="sg-page-sub">Applications waiting for you to set an interest rate</div>
+        </div>
+        <div className="sg-card sg-empty">No applications are waiting for your quote.</div>
+      </div>
+    );
+  }
+  return (
+    <div className="sg-page">
+      <div className="sg-page-hdr">
+        <div className="sg-page-title">Awaiting your quote</div>
+        <div className="sg-page-sub">{applications.length} application{applications.length !== 1 && "s"} waiting</div>
+      </div>
+      {applications.map((a) => (
+        <QuoteCard key={a.application_id} app={a} baselines={baselines} queryClient={queryClient} />
+      ))}
+    </div>
+  );
+}
+
+function QuoteCard({ app, baselines, queryClient }: { app: AgentApplication; baselines: LoanBaseline[]; queryClient: ReturnType<typeof useQueryClient> }) {
+  const [rate, setRate] = useState("");
+  const [days, setDays] = useState<number>(app.duration_days || 30);
+  const [error, setError] = useState<string | null>(null);
+
+  const { data: docs = [] } = useQuery<ApplicationDocument[]>({
+    queryKey: ["app-documents", app.application_id],
+    queryFn: () => api.get(`/applications/${app.application_id}/documents`).then((r) => r.data),
+  });
+
+  const baseline = baselines.find((b) => b.product_key === app.product && b.duration_days === days);
+  const principal = Number(app.amount || 0);
+  const months = days / 30;
+  const preview = rate ? principal * (1 + (Number(rate) / 100) * months) : null;
+
+  const quoteMutation = useMutation({
+    mutationFn: () =>
+      api.post(`/agent/applications/${app.application_id}/quote`, {
+        interest_rate_monthly_pct: Number(rate),
+        duration_days: days,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["agent-applications"] });
+    },
+    onError: (err: unknown) => {
+      const e = err as { response?: { data?: { message?: string } } };
+      setError(e.response?.data?.message || "Could not send quote.");
+    },
+  });
+
+  const submit = () => {
+    setError(null);
+    const r = Number(rate);
+    if (!Number.isFinite(r) || r <= 0) { setError("Enter a positive interest rate."); return; }
+    if (baseline && r < baseline.baseline_monthly_rate_pct) {
+      setError(`Rate must be at or above the baseline (${baseline.baseline_monthly_rate_pct}%).`);
+      return;
+    }
+    quoteMutation.mutate();
+  };
+
+  return (
+    <div className="sg-card" style={{ marginBottom: 16 }}>
+      <div className="sg-card-hdr">
+        <div>
+          <div className="sg-card-title">{app.borrower_name} — {app.product}</div>
+          <div className="sg-card-sub">{fmtMoney(app.amount)} · {app.purpose}</div>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+        <Detail label="Email" value={app.borrower_email} />
+        <Detail label="Passport" value={app.int_passport_no} />
+        <Detail label="Address" value={app.borrower_address} />
+        <Detail label="Bank" value={app.bank_name ? `${app.bank_name} · ${app.bank_account_number} · ${app.bank_account_name}` : "—"} />
+        <Detail label="Next of kin" value={app.nok_name ? `${app.nok_name} (${app.nok_relationship}) · ${app.nok_phone}` : "—"} />
+        <Detail label="NOK address" value={app.nok_address} />
+      </div>
+
+      <div style={{ borderTop: "1px solid var(--border)", paddingTop: 10, marginBottom: 10 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", marginBottom: 6 }}>Documents ({docs.length})</div>
+        {docs.length === 0 ? (
+          <div style={{ fontSize: 12, color: "var(--dim)" }}>None uploaded.</div>
+        ) : (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {docs.map((d) => (
+              <a key={d.id} href={d.cloudinary_url} target="_blank" rel="noreferrer" className="sg-btn sg-btn-sm" style={{ textDecoration: "none" }}>
+                {d.doc_type.replace(/_/g, " ")} ↗
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {error && <div className="sg-alert sg-al-red" style={{ marginBottom: 8 }}>{error}</div>}
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, alignItems: "end" }}>
+        <div>
+          <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 4 }}>Duration</label>
+          <select style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1.5px solid var(--border)", fontSize: 14, fontFamily: "inherit", background: "var(--white)" }} value={days} onChange={(e) => setDays(Number(e.target.value))}>
+            <option value={30}>30 days</option>
+            <option value={60}>60 days</option>
+            <option value={90}>90 days</option>
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize: 11, color: "var(--muted)", display: "block", marginBottom: 4 }}>
+            Monthly rate (%) {baseline ? `· baseline ${baseline.baseline_monthly_rate_pct}%` : ""}
+          </label>
+          <input style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1.5px solid var(--border)", fontSize: 14, fontFamily: "inherit", background: "var(--white)" }} type="number" min="0" step="0.1" placeholder="e.g. 10" value={rate} onChange={(e) => setRate(e.target.value)} />
+        </div>
+        <button className="sg-btn sg-btn-accent" onClick={submit} disabled={quoteMutation.isPending}>
+          {quoteMutation.isPending ? "Sending…" : "Send quote"}
+        </button>
+      </div>
+      {preview !== null && (
+        <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted)" }}>
+          Borrower will see total repayable: <strong style={{ color: "var(--amber)" }}>{fmtMoney(Math.round(preview))}</strong>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Detail({ label, value }: { label: string; value: string | undefined }) {
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: "var(--muted)" }}>{label}</div>
+      <div style={{ fontSize: 13, color: "var(--ink)" }}>{value || "—"}</div>
     </div>
   );
 }

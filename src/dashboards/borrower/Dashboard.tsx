@@ -15,6 +15,7 @@ import type {
   DocumentInfo,
   ChatMessage,
 } from "../../types/api";
+import ApplyWizard from "./ApplyWizard";
 import "./Borrower.css";
 
 type TabKey = "home" | "apply" | "status" | "docs" | "msgs" | "notifs";
@@ -86,6 +87,11 @@ interface BorrowerApplication extends Application {
   due_date?: string;
   repayment_status?: string;
   repayment_amount?: string | number;
+  duration_days?: number;
+  interest_rate_monthly_pct?: number | string;
+  total_repayable_naira?: number | string;
+  purpose?: string;
+  quoted_at?: string;
 }
 
 type ChatHistory = Record<string, ChatMessage[]>;
@@ -242,7 +248,7 @@ export default function BorrowerDashboard() {
               setActiveTab={setActiveTab}
             />
           )}
-          {activeTab === "apply" && <ApplyPage queryClient={queryClient} setActiveTab={setActiveTab} />}
+          {activeTab === "apply" && <ApplyWizard setActiveTab={(t) => setActiveTab(t as TabKey)} />}
           {activeTab === "status" && (
             <StatusPage
               app={primaryApp}
@@ -490,10 +496,20 @@ interface StatusPageProps {
 }
 
 function StatusPage({ app, extensions, onExtensionRequest }: StatusPageProps) {
+  const queryClient = useQueryClient();
   const { data: signatures = [] } = useQuery<Signature[]>({
     queryKey: ["signatures", app?.id],
     queryFn: () => api.get(`/signatures/${app!.id}`).then((r) => r.data),
     enabled: !!app?.id,
+  });
+
+  const acceptQuote = useMutation({
+    mutationFn: () => api.post(`/borrower/applications/${app!.id}/accept-quote`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["borrower-applications"] }),
+  });
+  const declineQuote = useMutation({
+    mutationFn: () => api.post(`/borrower/applications/${app!.id}/decline-quote`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["borrower-applications"] }),
   });
 
   if (!app) {
@@ -529,7 +545,44 @@ function StatusPage({ app, extensions, onExtensionRequest }: StatusPageProps) {
         <div className="sb-page-sub">{app.id.slice(0, 8)} · {app.product} · {fmtMoney(app.amount)}</div>
       </div>
 
-      {!adminApproved && (
+      {app.status === "awaiting_quote" && (
+        <div className="sb-alert sb-al-blue">
+          Your agent has received the application and is preparing your quote. We'll notify you the moment they send it.
+        </div>
+      )}
+
+      {app.status === "quote_sent" && (
+        <div className="sb-card" style={{ borderLeft: "4px solid var(--blue)", marginBottom: 16 }}>
+          <div className="sb-card-title">Your agent has sent a quote</div>
+          <div className="sb-card-sub">Review the terms below and accept or decline.</div>
+          <div className="sb-sr"><span className="sb-sr-l">Principal</span><span className="sb-sr-r">{fmtMoney(app.amount)}</span></div>
+          <div className="sb-sr"><span className="sb-sr-l">Duration</span><span className="sb-sr-r">{app.duration_days} days</span></div>
+          <div className="sb-sr"><span className="sb-sr-l">Interest rate</span><span className="sb-sr-r">{app.interest_rate_monthly_pct}% per month</span></div>
+          <div className="sb-sr"><span className="sb-sr-l">Total repayable</span><span className="sb-sr-r" style={{ color: "var(--amber)", fontWeight: 600 }}>{fmtMoney(app.total_repayable_naira ?? 0)}</span></div>
+          <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+            <button className="sb-btn sb-btn-primary" onClick={() => acceptQuote.mutate()} disabled={acceptQuote.isPending || declineQuote.isPending}>
+              {acceptQuote.isPending ? "Accepting…" : "Accept quote"}
+            </button>
+            <button className="sb-btn" onClick={() => declineQuote.mutate()} disabled={acceptQuote.isPending || declineQuote.isPending}>
+              {declineQuote.isPending ? "Declining…" : "Decline"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {app.status === "quote_accepted" && (
+        <div className="sb-alert sb-al-green">
+          You accepted the quote. Your application is now moving to signature and disbursement.
+        </div>
+      )}
+
+      {app.status === "quote_declined" && (
+        <div className="sb-alert sb-al-amber">
+          You declined the quote. Contact your agent if you'd like a new offer.
+        </div>
+      )}
+
+      {!adminApproved && app.status !== "awaiting_quote" && app.status !== "quote_sent" && app.status !== "quote_declined" && (
         <div className="sb-alert sb-al-amber">
           Application is pending admin approval{pendingSignatures.length > 0 && `. Outstanding signatures: ${pendingSignatures.map((s) => s.party).join(", ")}`}.
         </div>

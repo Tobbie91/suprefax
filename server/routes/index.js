@@ -1,17 +1,20 @@
 import express from "express";
+import multer from "multer";
 import { authenticate, authorize, requireVerifiedKyc } from "../middleware/auth.js";
 import { audit } from "../middleware/audit.js";
 import { validate } from "../middleware/validate.js";
 import { applicationSchema, extensionSchema, loginSchema } from "../validation/applicationSchema.js";
 
 import { login, register, bootstrapAdmin } from "../controllers/auth.js";
-import { createApplication, getAgentApplications, getAgentRepayments } from "../controllers/application.js";
-import { getBorrowerRepayments, getBorrowerNotifications, getBorrowerApplications, getBorrowerExtensions, createBorrowerApplication } from "../controllers/borrower.js";
+import { createApplication, getAgentApplications, getAgentRepayments, quoteApplication, getLoanBaselines, listVerifiedAgents } from "../controllers/application.js";
+import { getBorrowerRepayments, getBorrowerNotifications, getBorrowerApplications, getBorrowerExtensions, createBorrowerApplication, acceptQuote, declineQuote } from "../controllers/borrower.js";
 import { requestExtension, approveExtension, declineExtension } from "../controllers/extensions.js";
 import { sign, getSignatures } from "../controllers/signature.js";
 import { getAllApplications, getExtensions, getAuditLogs, getAnalytics, controlNotifications, listAgents, listCustomers, createAgent, resetNonAdminUsers, manuallyVerifyKyc } from "../controllers/admin.js";
-import { getDocument } from "../controllers/documents.js";
+import { getDocument, listApplicationDocuments, uploadApplicationDocument } from "../controllers/documents.js";
 import { initiateKyc, getKycStatus, handleProveWebhook } from "../controllers/kyc.js";
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 
 const router = express.Router();
 
@@ -25,7 +28,17 @@ router.get("/borrower/repayments", authenticate, authorize(["borrower"]), requir
 router.get("/borrower/applications", authenticate, authorize(["borrower"]), requireVerifiedKyc, getBorrowerApplications);
 router.get("/borrower/extensions", authenticate, authorize(["borrower"]), requireVerifiedKyc, getBorrowerExtensions);
 router.post("/borrower/applications", authenticate, authorize(["borrower"]), requireVerifiedKyc, createBorrowerApplication);
+router.post("/borrower/applications/:id/accept-quote", authenticate, authorize(["borrower"]), requireVerifiedKyc, acceptQuote);
+router.post("/borrower/applications/:id/decline-quote", authenticate, authorize(["borrower"]), requireVerifiedKyc, declineQuote);
 router.get("/notifications", authenticate, getBorrowerNotifications);
+
+// Loan reference data (available to all authenticated users)
+router.get("/agents/verified", authenticate, listVerifiedAgents);
+router.get("/loan-baselines", authenticate, getLoanBaselines);
+
+// Application documents
+router.get("/applications/:id/documents", authenticate, listApplicationDocuments);
+router.post("/applications/:id/documents", authenticate, authorize(["borrower"]), requireVerifiedKyc, upload.single("file"), uploadApplicationDocument);
 
 // KYC (Mono Prove flow). Initiate is auth-gated; webhook is public.
 router.get("/kyc/status", authenticate, getKycStatus);
@@ -35,6 +48,7 @@ router.post("/webhooks/mono/prove", handleProveWebhook);
 // Agent (requires verified KYC)
 router.get("/agent/applications", authenticate, authorize(["agent"]), requireVerifiedKyc, getAgentApplications);
 router.get("/agent/repayments", authenticate, authorize(["agent"]), requireVerifiedKyc, getAgentRepayments);
+router.post("/agent/applications/:id/quote", authenticate, authorize(["agent"]), requireVerifiedKyc, quoteApplication);
 
 // Applications
 router.post(
