@@ -17,14 +17,16 @@ app.set("trust proxy", 1);
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 
 const allowedOrigins = [
-  "http://localhost:3000",
-  "http://localhost:5173",
   ...(process.env.FRONTEND_URL || "").split(",").map((s) => s.trim()),
 ].filter(Boolean);
 
+const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    if (!origin || LOCALHOST_RE.test(origin) || allowedOrigins.includes(origin)) {
+      return cb(null, true);
+    }
     return cb(new Error("Not allowed by CORS"));
   },
   credentials: true,
