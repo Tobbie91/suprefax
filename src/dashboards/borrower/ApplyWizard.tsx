@@ -15,69 +15,280 @@ interface Baseline {
   baseline_monthly_rate_pct: number;
 }
 
+interface Director {
+  full_name: string;
+  nin: string;
+  phone: string;
+  email: string;
+  bank_name: string;
+  bank_account_number: string;
+  bank_account_name: string;
+  country: string;
+  state: string;
+  disclaimer_confirmed: boolean;
+}
+
+const emptyDirector = (): Director => ({
+  full_name: "", nin: "", phone: "", email: "",
+  bank_name: "", bank_account_number: "", bank_account_name: "",
+  country: "Nigeria", state: "", disclaimer_confirmed: false,
+});
+
+interface Sponsor {
+  full_name: string;
+  nin: string;
+  bvn: string;
+  passport_no: string;
+  phone: string;
+  email: string;
+  relationship: string;
+  bank_name: string;
+  bank_account_number: string;
+  bank_account_name: string;
+  country: string;
+  state: string;
+  lga: string;
+  house_number: string;
+  street_name: string;
+  city: string;
+  disclaimer_confirmed: boolean;
+  company_name: string;
+  cac_number: string;
+  is_sole_signatory: boolean;
+}
+
+const emptySponsor = (): Sponsor => ({
+  full_name: "", nin: "", bvn: "", passport_no: "", phone: "", email: "", relationship: "",
+  bank_name: "", bank_account_number: "", bank_account_name: "",
+  country: "Nigeria", state: "", lga: "", house_number: "", street_name: "", city: "",
+  disclaimer_confirmed: false,
+  company_name: "", cac_number: "", is_sole_signatory: true,
+});
+
+interface Witness {
+  full_name: string;
+  nin: string;
+  passport_no: string;
+  phone: string;
+  email: string;
+  confirmed: boolean;
+}
+
+const emptyWitness = (): Witness => ({
+  full_name: "", nin: "", passport_no: "", phone: "", email: "", confirmed: false,
+});
+
 const PRODUCTS = [
-  { key: "Student POF", desc: "Proof of funds for student visa & admissions", range: "₦500K – ₦10M", color: "var(--blue)", bg: "var(--blue-lt)" },
-  { key: "Travel POF", desc: "Embassy proof of funds for international travel", range: "₦200K – ₦5M", color: "var(--teal)", bg: "var(--teal-lt)" },
-  { key: "LPO financing", desc: "Short-term financing to fulfil a Local Purchase Order", range: "Up to ₦20M", color: "var(--purple)", bg: "var(--purple-lt)" },
-  { key: "Soft business loan", desc: "Low-interest business financing for SMEs", range: "₦500K – ₦15M", color: "var(--red)", bg: "var(--red-lt)" },
+  { key: "Student POF", desc: "Proof of funds for student visa & admissions" },
+  { key: "Travel POF", desc: "Embassy proof of funds for international travel" },
+  { key: "LPO financing", desc: "Short-term financing to fulfil a Local Purchase Order" },
+  { key: "Soft business loan", desc: "Low-interest business financing for SMEs" },
 ];
 
 const DURATIONS = [30, 60, 90];
 
-const PRODUCT_SPECIFIC_LABEL: Record<string, string> = {
-  "Student POF": "Admission letter",
-  "Travel POF": "Visa application / appointment letter",
-  "LPO financing": "Local Purchase Order document",
-  "Soft business loan": "CAC business registration",
-};
+const NG_STATES = ["Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno", "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT", "Gombe", "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara"];
 
-const REQUIRED_DOCS = [
+const COUNTRIES = ["Nigeria", "United Kingdom", "United States", "Canada", "Germany", "Ireland", "Australia", "Schengen Region"];
+
+const REQUIRED_DOCS_BASE = [
   { key: "gov_id", label: "Government ID (NIN slip or passport data page)" },
   { key: "bank_statement", label: "Bank statement (last 3 months)" },
   { key: "proof_of_address", label: "Proof of address (≤ 3 months old)" },
 ];
 
+const productSpecificDoc = (product: string): { label: string; required: boolean } => {
+  switch (product) {
+    case "Student POF": return { label: "Admission letter", required: true };
+    case "Travel POF": return { label: "Visa approval letter", required: true };
+    case "LPO financing": return { label: "Approved LPO document", required: true };
+    case "Soft business loan": return { label: "CAC business registration", required: true };
+    default: return { label: "Product-specific document", required: false };
+  }
+};
+
 interface WizardState {
-  agent_id: string;
+  // step 1
   product: string;
-  amount: string;
-  duration_days: number;
-  purpose: string;
+  is_returning_borrower: boolean;
+
+  // step 2 - varies by product
+  full_name: string;
+  phone: string;
   int_passport_no: string;
-  borrower_address: string;
+  nin: string;
+  bvn: string;
+  visa_reference_no: string;
+  student_admission_received: boolean;
+  travel_visa_received: boolean;
+  company_name: string;
+  cac_number: string;
+  company_phone: string;
+  supplier_code: string;
+  po_number: string;
+
+  // step 3 - address + product sub-block
+  addr_country: string;
+  addr_state: string;
+  addr_lga: string;
+  addr_house_number: string;
+  addr_street_name: string;
+  addr_city: string;
+  addr_landmark: string;
+  addr_postal_code: string;
+  school_name: string;
+  student_id: string;
+  course: string;
+  destination_country: string;
+  school_address: string;
+  travel_destination_country: string;
+  destination_state: string;
+  travelers_count: string;
+  accommodation_type: string;
+  accommodation_address: string;
+  delivery_country: string;
+  delivery_state: string;
+  shipping_method: string;
+  delivery_address: string;
+  po_expiry: string;
+
+  // step 4 - application type
+  agent_route: "direct" | "agent_assisted";
+  agent_id: string;
+
+  // step 5 - sponsor
+  has_sponsor: boolean;
+  sponsor_type: "personal" | "corporate";
+  sponsor: Sponsor;
+  sponsor_directors: Director[];
+  sponsor_witness: Witness;
+
+  // step 6 - disbursement + loan
+  applicant_type: "individual" | "corporate";
   bank_name: string;
   bank_account_number: string;
   bank_account_name: string;
+  applicant_company_name: string;
+  applicant_cac_number: string;
+  applicant_bank_account_number: string;
+  applicant_bank_account_name: string;
+  applicant_is_sole_signatory: boolean;
+  applicant_directors: Director[];
+  amount: string;
+  duration_days: number;
+  purpose: string;
+
+  // step 7 - declaration + docs
+  declaration_accepted: boolean;
+  declaration_name: string;
+  attestation_signed_name: string;
+
+  // NOK (kept)
   nok_name: string;
   nok_phone: string;
   nok_address: string;
   nok_relationship: string;
-  declaration: { infant: boolean; sound: boolean; fraud: boolean; bankrupt: boolean };
+
+  // files
   files: Record<string, File | null>;
   additionalFiles: File[];
+
+  // step 8
+  master_confirmed: boolean;
 }
 
 const EMPTY: WizardState = {
-  agent_id: "",
-  product: "",
-  amount: "",
-  duration_days: 30,
-  purpose: "",
+  product: "Student POF",
+  is_returning_borrower: false,
+
+  full_name: "",
+  phone: "",
   int_passport_no: "",
-  borrower_address: "",
+  nin: "",
+  bvn: "",
+  visa_reference_no: "",
+  student_admission_received: true,
+  travel_visa_received: true,
+  company_name: "",
+  cac_number: "",
+  company_phone: "",
+  supplier_code: "",
+  po_number: "",
+
+  addr_country: "Nigeria",
+  addr_state: "",
+  addr_lga: "",
+  addr_house_number: "",
+  addr_street_name: "",
+  addr_city: "",
+  addr_landmark: "",
+  addr_postal_code: "",
+  school_name: "",
+  student_id: "",
+  course: "",
+  destination_country: "Canada",
+  school_address: "",
+  travel_destination_country: "Canada",
+  destination_state: "",
+  travelers_count: "1",
+  accommodation_type: "",
+  accommodation_address: "",
+  delivery_country: "Nigeria",
+  delivery_state: "",
+  shipping_method: "",
+  delivery_address: "",
+  po_expiry: "",
+
+  agent_route: "direct",
+  agent_id: "",
+
+  has_sponsor: false,
+  sponsor_type: "personal",
+  sponsor: emptySponsor(),
+  sponsor_directors: [],
+  sponsor_witness: emptyWitness(),
+
+  applicant_type: "individual",
   bank_name: "",
   bank_account_number: "",
   bank_account_name: "",
+  applicant_company_name: "",
+  applicant_cac_number: "",
+  applicant_bank_account_number: "",
+  applicant_bank_account_name: "",
+  applicant_is_sole_signatory: true,
+  applicant_directors: [],
+  amount: "",
+  duration_days: 30,
+  purpose: "",
+
+  declaration_accepted: false,
+  declaration_name: "",
+  attestation_signed_name: "",
+
   nok_name: "",
   nok_phone: "",
   nok_address: "",
   nok_relationship: "",
-  declaration: { infant: false, sound: false, fraud: false, bankrupt: false },
-  files: { gov_id: null, bank_statement: null, proof_of_address: null, product_specific: null },
+
+  files: { gov_id: null, bank_statement: null, proof_of_address: null, product_specific: null, admission_receipt: null },
   additionalFiles: [],
+
+  master_confirmed: false,
 };
 
 const fmtMoney = (n: number | string): string => `₦${Number(n || 0).toLocaleString()}`;
+
+const STEP_TITLES = [
+  "Loan Type",
+  "Personal Info",
+  "Address & Details",
+  "Application Type",
+  "Sponsor Info",
+  "Bank & Loan",
+  "Declaration & Docs",
+  "Review & Submit",
+];
 
 interface Props {
   setActiveTab: (t: string) => void;
@@ -102,41 +313,89 @@ export default function ApplyWizard({ setActiveTab }: Props) {
   });
 
   const update = (patch: Partial<WizardState>) => setState((s) => ({ ...s, ...patch }));
+  const updateSponsor = (patch: Partial<Sponsor>) => setState((s) => ({ ...s, sponsor: { ...s.sponsor, ...patch } }));
+  const updateWitness = (patch: Partial<Witness>) => setState((s) => ({ ...s, sponsor_witness: { ...s.sponsor_witness, ...patch } }));
 
   const baseline = baselines.find((b) => b.product_key === state.product && b.duration_days === state.duration_days);
 
+  // Skip pages 2 (personal) and 3 (address) when returning borrower
+  const skipsPersonalAddress = state.is_returning_borrower;
+
   const validateStep = (): string | null => {
     switch (step) {
-      case 0: return state.agent_id ? null : "Pick an agent to continue.";
+      case 0:
+        if (!state.product) return "Pick a loan category.";
+        return null;
       case 1:
-        if (!state.product) return "Pick a product.";
-        if (!state.amount || Number(state.amount) <= 0) return "Enter a valid amount.";
+        if (state.product === "LPO financing") {
+          if (!state.company_name.trim()) return "Company name is required.";
+          if (!state.cac_number.trim()) return "CAC registration number is required.";
+          if (!state.po_number.trim()) return "Purchase Order number is required.";
+        } else if (state.product === "Travel POF") {
+          if (!state.full_name.trim()) return "Full name is required.";
+          if (!state.visa_reference_no.trim()) return "Visa application reference is required.";
+          if (!/^\d{11}$/.test(state.nin)) return "NIN must be 11 digits.";
+          if (!/^\d{11}$/.test(state.bvn)) return "BVN must be 11 digits.";
+        } else {
+          if (!state.full_name.trim()) return "Full name is required.";
+          if (!/^0\d{10}$/.test(state.phone)) return "Phone must be 11 digits starting with 0.";
+          if (!state.int_passport_no.trim()) return "International passport number is required.";
+          if (!/^\d{11}$/.test(state.nin)) return "NIN must be 11 digits.";
+          if (!/^\d{11}$/.test(state.bvn)) return "BVN must be 11 digits.";
+        }
+        return null;
+      case 2:
+        if (!state.addr_country || !state.addr_state || !state.addr_lga) return "Country, state and LGA are required.";
+        if (!state.addr_house_number.trim() || !state.addr_street_name.trim() || !state.addr_city.trim()) return "House number, street and city are required.";
+        return null;
+      case 3:
+        if (state.agent_route === "agent_assisted" && !state.agent_id) return "Pick an agent to continue.";
+        return null;
+      case 4:
+        if (!state.has_sponsor) return null;
+        if (state.sponsor_type === "personal") {
+          if (!state.sponsor.full_name.trim()) return "Sponsor name is required.";
+          if (!/^\d{11}$/.test(state.sponsor.nin)) return "Sponsor NIN must be 11 digits.";
+          if (!/^\d{11}$/.test(state.sponsor.bvn)) return "Sponsor BVN must be 11 digits.";
+          if (!/^0\d{10}$/.test(state.sponsor.phone)) return "Sponsor phone must be 11 digits starting with 0.";
+        } else {
+          if (!state.sponsor.company_name.trim()) return "Sponsor company name is required.";
+          if (!state.sponsor.cac_number.trim()) return "Sponsor CAC number is required.";
+          if (!state.sponsor.is_sole_signatory && state.sponsor_directors.length === 0) {
+            return "Add at least one signatory director for the sponsor company.";
+          }
+        }
+        return null;
+      case 5:
+        if (state.applicant_type === "individual") {
+          if (!state.bank_name.trim()) return "Bank name is required.";
+          if (!/^\d{10}$/.test(state.bank_account_number)) return "Account number must be 10 digits.";
+          if (!state.bank_account_name.trim()) return "Account name is required.";
+        } else {
+          if (!state.applicant_company_name.trim()) return "Company name is required.";
+          if (!state.applicant_cac_number.trim()) return "CAC number is required.";
+          if (!/^\d{10}$/.test(state.applicant_bank_account_number)) return "Company account number must be 10 digits.";
+          if (!state.applicant_bank_account_name.trim()) return "Company account name is required.";
+        }
+        if (!state.amount || Number(state.amount) <= 0) return "Enter a valid loan amount.";
         if (!DURATIONS.includes(state.duration_days)) return "Pick a duration.";
         if (!state.purpose.trim()) return "Tell us why you need the loan.";
         return null;
-      case 2:
-        if (!state.int_passport_no.trim()) return "International passport number is required.";
-        if (!state.borrower_address.trim() || state.borrower_address.trim().length < 5) return "Enter your residential address.";
-        return null;
-      case 3:
-        if (!state.bank_name.trim()) return "Bank name is required.";
-        if (!/^\d{10}$/.test(state.bank_account_number)) return "Account number must be 10 digits.";
-        if (!state.bank_account_name.trim()) return "Account name is required.";
-        return null;
-      case 4:
-        if (!state.nok_name.trim()) return "Next of Kin name is required.";
-        if (!/^0\d{10}$/.test(state.nok_phone)) return "NOK phone must be 11 digits starting with 0.";
-        if (!state.nok_address.trim()) return "NOK address is required.";
-        if (!state.nok_relationship.trim()) return "Relationship is required.";
-        return null;
-      case 5:
-        for (const d of REQUIRED_DOCS) {
+      case 6:
+        if (!state.declaration_accepted) return "You must accept the declaration.";
+        if (!state.attestation_signed_name.trim()) return "Please type your full legal name to attest.";
+        for (const d of REQUIRED_DOCS_BASE) {
           if (!state.files[d.key]) return `Upload ${d.label}.`;
         }
-        if (!state.files.product_specific) return `Upload ${PRODUCT_SPECIFIC_LABEL[state.product] || "the product document"}.`;
+        if (productSpecificDoc(state.product).required && !state.files.product_specific) {
+          return `Upload ${productSpecificDoc(state.product).label}.`;
+        }
+        if (state.product === "Student POF" && !state.files.admission_receipt) {
+          return "Upload the admission fee payment receipt.";
+        }
         return null;
-      case 6:
-        if (!Object.values(state.declaration).every(Boolean)) return "You must accept all four declarations.";
+      case 7:
+        if (!state.master_confirmed) return "Confirm the final declaration to submit.";
         return null;
       default: return null;
     }
@@ -146,10 +405,21 @@ export default function ApplyWizard({ setActiveTab }: Props) {
     const e = validateStep();
     if (e) { setError(e); return; }
     setError(null);
-    setStep((s) => s + 1);
+    if (step === 0 && skipsPersonalAddress) {
+      setStep(3);
+    } else {
+      setStep((s) => s + 1);
+    }
   };
 
-  const back = () => { setError(null); setStep((s) => Math.max(0, s - 1)); };
+  const back = () => {
+    setError(null);
+    if (step === 3 && skipsPersonalAddress) {
+      setStep(0);
+    } else {
+      setStep((s) => Math.max(0, s - 1));
+    }
+  };
 
   const handleFile = (key: string) => (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0] || null;
@@ -161,31 +431,97 @@ export default function ApplyWizard({ setActiveTab }: Props) {
     update({ additionalFiles: list });
   };
 
+  const buildPayload = () => ({
+    product: state.product,
+    is_returning_borrower: state.is_returning_borrower,
+    amount: Number(state.amount),
+    duration_days: state.duration_days,
+    purpose: state.purpose.trim(),
+
+    int_passport_no: state.int_passport_no.trim() || null,
+    borrower_address: `${state.addr_house_number} ${state.addr_street_name}, ${state.addr_city}, ${state.addr_state}`.trim() || null,
+
+    // top-level personal fields duplicated for legacy
+    visa_reference_no: state.visa_reference_no || null,
+    company_name: state.company_name || null,
+    cac_number: state.cac_number || null,
+    supplier_code: state.supplier_code || null,
+    po_number: state.po_number || null,
+    po_expiry: state.po_expiry || null,
+
+    // address
+    addr_country: state.addr_country,
+    addr_state: state.addr_state,
+    addr_lga: state.addr_lga,
+    addr_house_number: state.addr_house_number,
+    addr_street_name: state.addr_street_name,
+    addr_city: state.addr_city,
+    addr_landmark: state.addr_landmark || null,
+    addr_postal_code: state.addr_postal_code || null,
+
+    // student sub
+    student_id: state.student_id || null,
+    course: state.course || null,
+    school_name: state.school_name || null,
+    school_address: state.school_address || null,
+    destination_country: state.destination_country || null,
+
+    // travel sub
+    destination_state: state.destination_state || null,
+    travelers_count: state.travelers_count || null,
+    accommodation_type: state.accommodation_type || null,
+    accommodation_address: state.accommodation_address || null,
+
+    // lpo sub
+    delivery_country: state.delivery_country || null,
+    delivery_state: state.delivery_state || null,
+    delivery_address: state.delivery_address || null,
+    shipping_method: state.shipping_method || null,
+
+    // application type
+    agent_route: state.agent_route,
+    agent_id: state.agent_route === "agent_assisted" ? state.agent_id : null,
+
+    // sponsor
+    has_sponsor: state.has_sponsor,
+    sponsor: state.has_sponsor ? {
+      sponsor_type: state.sponsor_type,
+      ...state.sponsor,
+      directors: state.sponsor_type === "corporate" && !state.sponsor.is_sole_signatory ? state.sponsor_directors : [],
+      witness: state.sponsor_witness.full_name.trim() ? state.sponsor_witness : null,
+    } : null,
+
+    // applicant
+    applicant_type: state.applicant_type,
+    bank_name: state.applicant_type === "individual" ? state.bank_name : null,
+    bank_account_number: state.applicant_type === "individual" ? state.bank_account_number : null,
+    bank_account_name: state.applicant_type === "individual" ? state.bank_account_name : null,
+    applicant_company_name: state.applicant_type === "corporate" ? state.applicant_company_name : null,
+    applicant_cac_number: state.applicant_type === "corporate" ? state.applicant_cac_number : null,
+    applicant_company_address: null,
+    applicant_directors: state.applicant_type === "corporate" && !state.applicant_is_sole_signatory ? state.applicant_directors : [],
+
+    // NOK
+    nok_name: state.nok_name || null,
+    nok_phone: state.nok_phone || null,
+    nok_address: state.nok_address || null,
+    nok_relationship: state.nok_relationship || null,
+
+    // attestation
+    attestation_signed_name: state.attestation_signed_name.trim(),
+    declaration_accepted: true,
+  });
+
   const submit = async () => {
     setError(null);
     setSubmitting(true);
     try {
-      const { data: app } = await api.post("/borrower/applications", {
-        agent_id: state.agent_id,
-        product: state.product,
-        amount: Number(state.amount),
-        duration_days: state.duration_days,
-        purpose: state.purpose.trim(),
-        int_passport_no: state.int_passport_no.trim(),
-        borrower_address: state.borrower_address.trim(),
-        bank_name: state.bank_name.trim(),
-        bank_account_number: state.bank_account_number,
-        bank_account_name: state.bank_account_name.trim(),
-        nok_name: state.nok_name.trim(),
-        nok_phone: state.nok_phone,
-        nok_address: state.nok_address.trim(),
-        nok_relationship: state.nok_relationship.trim(),
-        declaration_accepted: true,
-      });
-
+      const { data: app } = await api.post("/borrower/applications", buildPayload());
       const appId = app.id;
+
       const uploads: Promise<unknown>[] = [];
-      for (const key of ["gov_id", "bank_statement", "proof_of_address", "product_specific"]) {
+      const docKeys = ["gov_id", "bank_statement", "proof_of_address", "product_specific", "admission_receipt"];
+      for (const key of docKeys) {
         const f = state.files[key];
         if (!f) continue;
         const fd = new FormData();
@@ -211,48 +547,30 @@ export default function ApplyWizard({ setActiveTab }: Props) {
     }
   };
 
-  const stepTitles = ["Pick agent", "Loan basics", "Personal", "Bank account", "Next of kin", "Documents", "Declaration", "Review"];
-
   return (
     <div className="sb-page">
       <div className="sb-page-hdr">
-        <div className="sb-page-title">Apply for a loan</div>
-        <div className="sb-page-sub">Step {step + 1} of {stepTitles.length} — {stepTitles[step]}</div>
+        <div className="sb-page-title">Suprefax Loan Application</div>
+        <div className="sb-page-sub">Step {step + 1} of {STEP_TITLES.length} — {STEP_TITLES[step]}</div>
       </div>
 
-      <Stepper step={step} titles={stepTitles} />
+      <Stepper step={step} titles={STEP_TITLES} skipped={skipsPersonalAddress ? [1, 2] : []} />
 
       {error && <div className="sb-alert sb-al-red" style={{ marginBottom: 12 }}>{error}</div>}
 
       <div className="sb-card">
-        {step === 0 && (
-          <AgentStep agents={agents} agentId={state.agent_id} onPick={(id) => update({ agent_id: id })} />
-        )}
-        {step === 1 && (
-          <BasicsStep state={state} update={update} baseline={baseline} />
-        )}
-        {step === 2 && (
-          <PersonalStep state={state} update={update} />
-        )}
-        {step === 3 && (
-          <BankStep state={state} update={update} />
-        )}
-        {step === 4 && (
-          <NokStep state={state} update={update} />
-        )}
-        {step === 5 && (
-          <DocumentsStep state={state} onFile={handleFile} onAdditional={handleAdditional} />
-        )}
-        {step === 6 && (
-          <DeclarationStep state={state} update={update} />
-        )}
-        {step === 7 && (
-          <ReviewStep state={state} agents={agents} baseline={baseline} />
-        )}
+        {step === 0 && <Step1LoanType state={state} update={update} />}
+        {step === 1 && <Step2PersonalInfo state={state} update={update} />}
+        {step === 2 && <Step3AddressDetails state={state} update={update} />}
+        {step === 3 && <Step4ApplicationType state={state} update={update} agents={agents} />}
+        {step === 4 && <Step5Sponsor state={state} update={update} updateSponsor={updateSponsor} updateWitness={updateWitness} />}
+        {step === 5 && <Step6BankLoan state={state} update={update} baseline={baseline} />}
+        {step === 6 && <Step7DeclarationDocs state={state} update={update} onFile={handleFile} onAdditional={handleAdditional} />}
+        {step === 7 && <Step8Review state={state} update={update} agents={agents} baseline={baseline} />}
 
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24 }}>
           <button className="sb-btn" onClick={back} disabled={step === 0 || submitting}>← Back</button>
-          {step < stepTitles.length - 1 ? (
+          {step < STEP_TITLES.length - 1 ? (
             <button className="sb-btn sb-btn-primary" onClick={next}>Next →</button>
           ) : (
             <button className="sb-btn sb-btn-primary" onClick={submit} disabled={submitting}>
@@ -265,296 +583,848 @@ export default function ApplyWizard({ setActiveTab }: Props) {
   );
 }
 
-function Stepper({ step, titles }: { step: number; titles: string[] }) {
+function Stepper({ step, titles, skipped }: { step: number; titles: string[]; skipped: number[] }) {
   return (
     <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
       {titles.map((t, i) => (
         <div
           key={t}
+          title={t}
           style={{
             flex: 1,
             height: 6,
             borderRadius: 3,
-            background: i <= step ? "var(--blue)" : "var(--border)",
+            background: skipped.includes(i) ? "var(--border)" : i <= step ? "var(--blue)" : "var(--border)",
+            opacity: skipped.includes(i) ? 0.4 : 1,
             transition: "background .2s",
           }}
-          title={t}
         />
       ))}
     </div>
   );
 }
 
-function AgentStep({ agents, agentId, onPick }: { agents: Agent[]; agentId: string; onPick: (id: string) => void }) {
-  if (agents.length === 0) {
-    return <div className="sb-alert sb-al-amber">No verified agents are available right now. Please contact support.</div>;
-  }
-  return (
-    <>
-      <div className="sb-card-title">Choose your agent</div>
-      <div className="sb-card-sub">Your agent will quote your interest rate and shepherd your application through.</div>
-      <div style={{ display: "grid", gap: 8 }}>
-        {agents.map((a) => (
-          <label
-            key={a.id}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              padding: 12,
-              border: `1.5px solid ${agentId === a.id ? "var(--blue)" : "var(--border)"}`,
-              background: agentId === a.id ? "var(--blue-lt)" : "var(--white)",
-              borderRadius: 10,
-              cursor: "pointer",
-            }}
-          >
-            <input
-              type="radio"
-              name="agent"
-              checked={agentId === a.id}
-              onChange={() => onPick(a.id)}
-              style={{ accentColor: "var(--blue)" }}
-            />
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 14, color: "var(--ink)" }}>{a.full_name}</div>
-              <div style={{ fontSize: 12, color: "var(--muted)" }}>{a.email}</div>
-            </div>
-          </label>
-        ))}
-      </div>
-    </>
-  );
-}
+type Updater = (patch: Partial<WizardState>) => void;
 
-function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
+function Field({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) {
   return (
     <div className="sb-m-fg">
-      <label className="sb-m-fl">{label}</label>
+      <label className="sb-m-fl">
+        {label} {required && <span style={{ color: "var(--red)" }}>*</span>}
+      </label>
       {children}
-      {hint && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>{hint}</div>}
     </div>
   );
 }
 
-function BasicsStep({ state, update, baseline }: { state: WizardState; update: (p: Partial<WizardState>) => void; baseline?: Baseline }) {
+function Row({ children }: { children: ReactNode }) {
+  return <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{children}</div>;
+}
+
+function Row3({ children }: { children: ReactNode }) {
+  return <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>{children}</div>;
+}
+
+function OptionCard({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: ReactNode }) {
   return (
-    <>
-      <div className="sb-card-title">Loan basics</div>
-      <div className="sb-card-sub">Pick a product, amount, duration, and tell us why you need the loan.</div>
-
-      <Field label="Product">
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
-          {PRODUCTS.map((p) => (
-            <div
-              key={p.key}
-              onClick={() => update({ product: p.key })}
-              style={{
-                padding: 12,
-                border: `1.5px solid ${state.product === p.key ? p.color : "var(--border)"}`,
-                background: state.product === p.key ? p.bg : "var(--white)",
-                borderRadius: 10,
-                cursor: "pointer",
-              }}
-            >
-              <div style={{ fontWeight: 600, color: "var(--ink)" }}>{p.key}</div>
-              <div style={{ fontSize: 12, color: "var(--muted)" }}>{p.desc}</div>
-              <div style={{ fontSize: 11, color: p.color, marginTop: 4 }}>{p.range}</div>
-            </div>
-          ))}
-        </div>
-      </Field>
-
-      <Field label="Amount (₦)">
-        <input
-          className="sb-m-fi"
-          type="text"
-          inputMode="numeric"
-          placeholder="e.g. 500,000"
-          value={state.amount ? Number(state.amount).toLocaleString() : ""}
-          onChange={(e) => update({ amount: e.target.value.replace(/\D/g, "") })}
-        />
-      </Field>
-
-      <Field label="Duration" hint={baseline ? `Indicative baseline rate: ${baseline.baseline_monthly_rate_pct}%/month (agent may quote higher).` : undefined}>
-        <div style={{ display: "flex", gap: 8 }}>
-          {DURATIONS.map((d) => (
-            <button
-              key={d}
-              type="button"
-              onClick={() => update({ duration_days: d })}
-              className="sb-btn"
-              style={{
-                background: state.duration_days === d ? "var(--blue)" : "var(--white)",
-                color: state.duration_days === d ? "#fff" : "var(--ink)",
-              }}
-            >
-              {d} days
-            </button>
-          ))}
-        </div>
-      </Field>
-
-      <Field label="Purpose">
-        <textarea
-          className="sb-m-fi"
-          rows={3}
-          placeholder="e.g. Canada work visa application"
-          value={state.purpose}
-          onChange={(e) => update({ purpose: e.target.value })}
-          style={{ resize: "vertical", fontFamily: "inherit" }}
-        />
-      </Field>
-    </>
+    <div
+      onClick={onClick}
+      style={{
+        border: selected ? "2px solid var(--blue)" : "1px solid var(--border)",
+        borderRadius: 8,
+        padding: 12,
+        cursor: "pointer",
+        background: selected ? "var(--blue-lt)" : "var(--white)",
+        marginBottom: 8,
+      }}
+    >
+      {children}
+    </div>
   );
 }
 
-function PersonalStep({ state, update }: { state: WizardState; update: (p: Partial<WizardState>) => void }) {
-  return (
-    <>
-      <div className="sb-card-title">Personal details</div>
-      <div className="sb-card-sub">We already have your NIN and BVN from KYC. These extra fields are required by the loan agreement.</div>
-      <Field label="International passport number">
-        <input className="sb-m-fi" value={state.int_passport_no} onChange={(e) => update({ int_passport_no: e.target.value.toUpperCase() })} placeholder="e.g. A12345678" />
-      </Field>
-      <Field label="Residential address">
-        <textarea className="sb-m-fi" rows={2} value={state.borrower_address} onChange={(e) => update({ borrower_address: e.target.value })} placeholder="Street, city, state" style={{ resize: "vertical", fontFamily: "inherit" }} />
-      </Field>
-    </>
-  );
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 1 — Loan Type + Returning Applicant
+// ─────────────────────────────────────────────────────────────────────────────
 
-function BankStep({ state, update }: { state: WizardState; update: (p: Partial<WizardState>) => void }) {
+function Step1LoanType({ state, update }: { state: WizardState; update: Updater }) {
   return (
     <>
-      <div className="sb-card-title">Bank account for disbursement</div>
-      <div className="sb-card-sub">This is where Suprefax will pay the loan if approved.</div>
-      <Field label="Bank name">
-        <input className="sb-m-fi" value={state.bank_name} onChange={(e) => update({ bank_name: e.target.value })} placeholder="e.g. UBA" />
-      </Field>
-      <Field label="Account number">
-        <input className="sb-m-fi" inputMode="numeric" maxLength={10} value={state.bank_account_number} onChange={(e) => update({ bank_account_number: e.target.value.replace(/\D/g, "") })} placeholder="10-digit NUBAN" />
-      </Field>
-      <Field label="Account name">
-        <input className="sb-m-fi" value={state.bank_account_name} onChange={(e) => update({ bank_account_name: e.target.value })} placeholder="As it appears on your bank record" />
-      </Field>
-    </>
-  );
-}
-
-function NokStep({ state, update }: { state: WizardState; update: (p: Partial<WizardState>) => void }) {
-  return (
-    <>
-      <div className="sb-card-title">Next of Kin / Witness</div>
-      <div className="sb-card-sub">A person who can vouch for you and act as a witness on the agreement.</div>
-      <Field label="Full name">
-        <input className="sb-m-fi" value={state.nok_name} onChange={(e) => update({ nok_name: e.target.value })} />
-      </Field>
-      <Field label="Phone">
-        <input className="sb-m-fi" inputMode="numeric" maxLength={11} value={state.nok_phone} onChange={(e) => update({ nok_phone: e.target.value.replace(/\D/g, "") })} placeholder="08012345678" />
-      </Field>
-      <Field label="Address">
-        <textarea className="sb-m-fi" rows={2} value={state.nok_address} onChange={(e) => update({ nok_address: e.target.value })} style={{ resize: "vertical", fontFamily: "inherit" }} />
-      </Field>
-      <Field label="Relationship">
-        <input className="sb-m-fi" value={state.nok_relationship} onChange={(e) => update({ nok_relationship: e.target.value })} placeholder="e.g. Spouse, Sibling, Parent" />
-      </Field>
-    </>
-  );
-}
-
-function DocumentsStep({ state, onFile, onAdditional }: { state: WizardState; onFile: (k: string) => (e: ChangeEvent<HTMLInputElement>) => void; onAdditional: (e: ChangeEvent<HTMLInputElement>) => void }) {
-  const productSpecificLabel = state.product ? PRODUCT_SPECIFIC_LABEL[state.product] : "Product-specific document";
-  return (
-    <>
-      <div className="sb-card-title">Required documents</div>
-      <div className="sb-card-sub">All files up to 8MB. PDF, JPG or PNG.</div>
-      {REQUIRED_DOCS.map((d) => (
-        <DocSlot key={d.key} label={d.label} file={state.files[d.key]} onChange={onFile(d.key)} />
+      <h4 style={{ margin: "0 0 12px 0" }}>Section 1: Select your loan type</h4>
+      {PRODUCTS.map((p) => (
+        <OptionCard key={p.key} selected={state.product === p.key} onClick={() => update({ product: p.key })}>
+          <div style={{ fontWeight: 700 }}>{p.key}</div>
+          <div style={{ fontSize: 12, color: "var(--muted)" }}>{p.desc}</div>
+        </OptionCard>
       ))}
-      <DocSlot label={productSpecificLabel} file={state.files.product_specific} onChange={onFile("product_specific")} />
+
+      <h4 style={{ margin: "24px 0 12px 0" }}>Section 1B: Have you applied before?</h4>
+      <OptionCard selected={state.is_returning_borrower} onClick={() => update({ is_returning_borrower: true })}>
+        <div style={{ fontWeight: 700 }}>YES — I am a returning borrower</div>
+        <div style={{ fontSize: 12, color: "var(--muted)" }}>Skip re-entering personal and address details.</div>
+      </OptionCard>
+      <OptionCard selected={!state.is_returning_borrower} onClick={() => update({ is_returning_borrower: false })}>
+        <div style={{ fontWeight: 700 }}>NO — I am a new borrower</div>
+      </OptionCard>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 2 — Personal Info (branches on product)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function Step2PersonalInfo({ state, update }: { state: WizardState; update: Updater }) {
+  if (state.product === "LPO financing") {
+    return (
+      <>
+        <h4>Section 2: Business & LPO Information</h4>
+        <Row>
+          <Field label="Registered Business/Company Name" required>
+            <input className="sb-m-fi" value={state.company_name} onChange={(e) => update({ company_name: e.target.value })} placeholder="As registered on CAC" />
+          </Field>
+          <Field label="CAC Registration Number (RC or BN)" required>
+            <input className="sb-m-fi" value={state.cac_number} onChange={(e) => update({ cac_number: e.target.value })} placeholder="e.g. RC123456" />
+          </Field>
+        </Row>
+        <Row>
+          <Field label="Company Phone Number" required>
+            <input className="sb-m-fi" value={state.company_phone} onChange={(e) => update({ company_phone: e.target.value.replace(/\D/g, "") })} placeholder="08012345678" maxLength={11} />
+          </Field>
+          <Field label="Supplier Code" required>
+            <input className="sb-m-fi" value={state.supplier_code} onChange={(e) => update({ supplier_code: e.target.value })} placeholder="Enter your supplier code" />
+          </Field>
+        </Row>
+        <Field label="Purchase Order (PO) Number" required>
+          <input className="sb-m-fi" value={state.po_number} onChange={(e) => update({ po_number: e.target.value })} placeholder="LPO reference number" />
+        </Field>
+      </>
+    );
+  }
+
+  if (state.product === "Travel POF") {
+    return (
+      <>
+        <h4>Section 2: Traveler Personal Information</h4>
+        <Row>
+          <Field label="Full Legal Name" required>
+            <input className="sb-m-fi" value={state.full_name} onChange={(e) => update({ full_name: e.target.value })} placeholder="Surname, First name Middle name" />
+          </Field>
+          <Field label="Visa Application Reference Number" required>
+            <input className="sb-m-fi" value={state.visa_reference_no} onChange={(e) => update({ visa_reference_no: e.target.value })} placeholder="Enter your visa reference" />
+          </Field>
+        </Row>
+        <Row>
+          <Field label="Phone Number" required>
+            <input className="sb-m-fi" value={state.phone} onChange={(e) => update({ phone: e.target.value.replace(/\D/g, "") })} placeholder="08012345678" maxLength={11} />
+          </Field>
+          <Field label="International Passport Number" required>
+            <input className="sb-m-fi" value={state.int_passport_no} onChange={(e) => update({ int_passport_no: e.target.value })} placeholder="e.g. A01234567" />
+          </Field>
+        </Row>
+        <Row>
+          <Field label="NIN" required>
+            <input className="sb-m-fi" value={state.nin} onChange={(e) => update({ nin: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="11 digits" />
+          </Field>
+          <Field label="BVN" required>
+            <input className="sb-m-fi" value={state.bvn} onChange={(e) => update({ bvn: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="11 digits" />
+          </Field>
+        </Row>
+        <Field label="Have you received your visa approval letter?">
+          <select className="sb-m-fi" value={state.travel_visa_received ? "YES" : "NO"} onChange={(e) => update({ travel_visa_received: e.target.value === "YES" })}>
+            <option value="YES">YES</option>
+            <option value="NO">NO</option>
+          </select>
+        </Field>
+      </>
+    );
+  }
+
+  // Student POF or Soft business loan → shared primary form
+  return (
+    <>
+      <h4>Section 2: Borrower Personal Information</h4>
+      <Row>
+        <Field label="Full Legal Name" required>
+          <input className="sb-m-fi" value={state.full_name} onChange={(e) => update({ full_name: e.target.value })} placeholder="Surname, First name Middle name" />
+        </Field>
+        <Field label="Phone Number" required>
+          <input className="sb-m-fi" value={state.phone} onChange={(e) => update({ phone: e.target.value.replace(/\D/g, "") })} placeholder="08012345678" maxLength={11} />
+        </Field>
+      </Row>
+      <Row>
+        <Field label="International Passport Number" required>
+          <input className="sb-m-fi" value={state.int_passport_no} onChange={(e) => update({ int_passport_no: e.target.value })} placeholder="e.g. A01234567" />
+        </Field>
+        <Field label="NIN" required>
+          <input className="sb-m-fi" value={state.nin} onChange={(e) => update({ nin: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="11 digits" />
+        </Field>
+      </Row>
+      <Field label="BVN" required>
+        <input className="sb-m-fi" value={state.bvn} onChange={(e) => update({ bvn: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="11 digits" />
+      </Field>
+      {state.product === "Student POF" && (
+        <Field label="Have you received your school admission letter?">
+          <select className="sb-m-fi" value={state.student_admission_received ? "YES" : "NO"} onChange={(e) => update({ student_admission_received: e.target.value === "YES" })}>
+            <option value="YES">YES</option>
+            <option value="NO">NO</option>
+          </select>
+        </Field>
+      )}
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 3 — Address & Product Sub-Block
+// ─────────────────────────────────────────────────────────────────────────────
+
+function Step3AddressDetails({ state, update }: { state: WizardState; update: Updater }) {
+  return (
+    <>
+      <h4>Section 2A: Home / Office Address</h4>
+      <Row3>
+        <Field label="Country" required>
+          <select className="sb-m-fi" value={state.addr_country} onChange={(e) => update({ addr_country: e.target.value })}>
+            {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </Field>
+        <Field label="State" required>
+          <select className="sb-m-fi" value={state.addr_state} onChange={(e) => update({ addr_state: e.target.value })}>
+            <option value="">Select state</option>
+            {NG_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </Field>
+        <Field label="Local Government Area" required>
+          <input className="sb-m-fi" value={state.addr_lga} onChange={(e) => update({ addr_lga: e.target.value })} placeholder="e.g. Ikeja" />
+        </Field>
+      </Row3>
+      <Row>
+        <Field label="House / Flat Number" required>
+          <input className="sb-m-fi" value={state.addr_house_number} onChange={(e) => update({ addr_house_number: e.target.value })} placeholder="e.g. 12C" />
+        </Field>
+        <Field label="Street Name" required>
+          <input className="sb-m-fi" value={state.addr_street_name} onChange={(e) => update({ addr_street_name: e.target.value })} placeholder="Street name" />
+        </Field>
+      </Row>
+      <Row3>
+        <Field label="City / Town" required>
+          <input className="sb-m-fi" value={state.addr_city} onChange={(e) => update({ addr_city: e.target.value })} placeholder="e.g. Ikeja" />
+        </Field>
+        <Field label="Nearest Landmark">
+          <input className="sb-m-fi" value={state.addr_landmark} onChange={(e) => update({ addr_landmark: e.target.value })} placeholder="e.g. Opposite bank" />
+        </Field>
+        <Field label="Postal Code">
+          <input className="sb-m-fi" value={state.addr_postal_code} onChange={(e) => update({ addr_postal_code: e.target.value })} placeholder="e.g. 100001" />
+        </Field>
+      </Row3>
+
+      {(state.product === "Student POF" || state.product === "Soft business loan") && (
+        <>
+          <h4 style={{ marginTop: 20 }}>Section 2B: School Details</h4>
+          <Row>
+            <Field label="Name of School / Institution" required>
+              <input className="sb-m-fi" value={state.school_name} onChange={(e) => update({ school_name: e.target.value })} placeholder="e.g. University of Toronto" />
+            </Field>
+            <Field label="Student ID Number" required>
+              <input className="sb-m-fi" value={state.student_id} onChange={(e) => update({ student_id: e.target.value })} placeholder="Student ID" />
+            </Field>
+          </Row>
+          <Row>
+            <Field label="Course of Study" required>
+              <input className="sb-m-fi" value={state.course} onChange={(e) => update({ course: e.target.value })} placeholder="e.g. M.Sc. Computer Science" />
+            </Field>
+            <Field label="Destination Country" required>
+              <select className="sb-m-fi" value={state.destination_country} onChange={(e) => update({ destination_country: e.target.value })}>
+                {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </Field>
+          </Row>
+          <Field label="Full Address of the School" required>
+            <textarea className="sb-m-fi" rows={2} value={state.school_address} onChange={(e) => update({ school_address: e.target.value })} placeholder="Complete address of the institution" />
+          </Field>
+        </>
+      )}
+
+      {state.product === "Travel POF" && (
+        <>
+          <h4 style={{ marginTop: 20 }}>Section 2B: Travel Destination Details</h4>
+          <Row3>
+            <Field label="Destination Country" required>
+              <select className="sb-m-fi" value={state.travel_destination_country} onChange={(e) => update({ travel_destination_country: e.target.value })}>
+                {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </Field>
+            <Field label="State / Province" required>
+              <input className="sb-m-fi" value={state.destination_state} onChange={(e) => update({ destination_state: e.target.value })} placeholder="e.g. Ontario" />
+            </Field>
+            <Field label="Number of Travelers" required>
+              <input className="sb-m-fi" value={state.travelers_count} onChange={(e) => update({ travelers_count: e.target.value.replace(/\D/g, "") })} placeholder="e.g. 1" />
+            </Field>
+          </Row3>
+          <Field label="Accommodation Type" required>
+            <input className="sb-m-fi" value={state.accommodation_type} onChange={(e) => update({ accommodation_type: e.target.value })} placeholder="e.g. Hotel, Rented Apartment" />
+          </Field>
+          <Field label="Full Address of Where You Will Stay" required>
+            <textarea className="sb-m-fi" rows={2} value={state.accommodation_address} onChange={(e) => update({ accommodation_address: e.target.value })} placeholder="Complete address of your accommodation abroad" />
+          </Field>
+        </>
+      )}
+
+      {state.product === "LPO financing" && (
+        <>
+          <h4 style={{ marginTop: 20 }}>Section 2B: Delivery & Logistics Details</h4>
+          <Row3>
+            <Field label="Delivery Country" required>
+              <select className="sb-m-fi" value={state.delivery_country} onChange={(e) => update({ delivery_country: e.target.value })}>
+                <option>Nigeria</option>
+              </select>
+            </Field>
+            <Field label="Delivery State" required>
+              <select className="sb-m-fi" value={state.delivery_state} onChange={(e) => update({ delivery_state: e.target.value })}>
+                <option value="">Select state</option>
+                {NG_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </Field>
+            <Field label="Shipping / Transport Method" required>
+              <input className="sb-m-fi" value={state.shipping_method} onChange={(e) => update({ shipping_method: e.target.value })} placeholder="e.g. Air Freight" />
+            </Field>
+          </Row3>
+          <Field label="Full Delivery Address" required>
+            <textarea className="sb-m-fi" rows={2} value={state.delivery_address} onChange={(e) => update({ delivery_address: e.target.value })} placeholder="Exact address where goods should be delivered" />
+          </Field>
+          <Field label="LPO Expiry Date" required>
+            <input className="sb-m-fi" type="date" value={state.po_expiry} onChange={(e) => update({ po_expiry: e.target.value })} />
+          </Field>
+        </>
+      )}
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 4 — Application Type (direct / agent-assisted)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function Step4ApplicationType({ state, update, agents }: { state: WizardState; update: Updater; agents: Agent[] }) {
+  const selected = agents.find((a) => a.id === state.agent_id);
+  return (
+    <>
+      <h4>Section 3: Application Type</h4>
+      <OptionCard selected={state.agent_route === "direct"} onClick={() => update({ agent_route: "direct", agent_id: "" })}>
+        <div style={{ fontWeight: 700 }}>Direct Application</div>
+        <div style={{ fontSize: 12, color: "var(--muted)" }}>I am applying on my own.</div>
+      </OptionCard>
+      <OptionCard selected={state.agent_route === "agent_assisted"} onClick={() => update({ agent_route: "agent_assisted" })}>
+        <div style={{ fontWeight: 700 }}>Agent-Assisted Application</div>
+        <div style={{ fontSize: 12, color: "var(--muted)" }}>An authorized Suprefax agent is helping me apply.</div>
+      </OptionCard>
+
+      {state.agent_route === "agent_assisted" && (
+        <div style={{ marginTop: 16 }}>
+          <h4>Section 3B: Agent Information</h4>
+          <Field label="Select your agent" required>
+            <select className="sb-m-fi" value={state.agent_id} onChange={(e) => update({ agent_id: e.target.value })}>
+              <option value="">— Select agent —</option>
+              {agents.map((a) => <option key={a.id} value={a.id}>{a.full_name || a.email}</option>)}
+            </select>
+          </Field>
+          {selected && (
+            <div style={{ background: "var(--bg)", padding: 12, borderRadius: 6, fontSize: 12 }}>
+              <strong>Agent Profile:</strong> {selected.full_name} · {selected.email}
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 5 — Sponsor (personal / corporate + directors + witness)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function Step5Sponsor({
+  state, update, updateSponsor, updateWitness,
+}: {
+  state: WizardState;
+  update: Updater;
+  updateSponsor: (patch: Partial<Sponsor>) => void;
+  updateWitness: (patch: Partial<Witness>) => void;
+}) {
+  const s = state.sponsor;
+  const setDirCount = (n: number) => {
+    const cur = state.sponsor_directors;
+    if (n > cur.length) {
+      update({ sponsor_directors: [...cur, ...Array.from({ length: n - cur.length }, emptyDirector)] });
+    } else {
+      update({ sponsor_directors: cur.slice(0, n) });
+    }
+  };
+  const updateDir = (i: number, patch: Partial<Director>) => {
+    const list = [...state.sponsor_directors];
+    list[i] = { ...list[i], ...patch };
+    update({ sponsor_directors: list });
+  };
+
+  return (
+    <>
+      <h4>Section 4: Sponsor Information</h4>
+      <OptionCard selected={state.has_sponsor} onClick={() => update({ has_sponsor: true })}>
+        <div style={{ fontWeight: 700 }}>YES — I have a sponsor</div>
+        <div style={{ fontSize: 12, color: "var(--muted)" }}>Add sponsor details and (if a company) their directors.</div>
+      </OptionCard>
+      <OptionCard selected={!state.has_sponsor} onClick={() => update({ has_sponsor: false })}>
+        <div style={{ fontWeight: 700 }}>NO — I do not have a sponsor</div>
+      </OptionCard>
+
+      {state.has_sponsor && (
+        <>
+          <h4 style={{ marginTop: 20 }}>Sponsor Type</h4>
+          <OptionCard selected={state.sponsor_type === "personal"} onClick={() => update({ sponsor_type: "personal" })}>
+            <div style={{ fontWeight: 700 }}>Personal Sponsor (Individual)</div>
+          </OptionCard>
+          <OptionCard selected={state.sponsor_type === "corporate"} onClick={() => update({ sponsor_type: "corporate" })}>
+            <div style={{ fontWeight: 700 }}>Corporate Sponsor (Company / Institution)</div>
+          </OptionCard>
+
+          {state.sponsor_type === "personal" && (
+            <>
+              <h4 style={{ marginTop: 20 }}>Section 4B: Personal Sponsor Details</h4>
+              <Row>
+                <Field label="Full Legal Name" required>
+                  <input className="sb-m-fi" value={s.full_name} onChange={(e) => updateSponsor({ full_name: e.target.value })} placeholder="Surname, First name Middle name" />
+                </Field>
+                <Field label="NIN" required>
+                  <input className="sb-m-fi" value={s.nin} onChange={(e) => updateSponsor({ nin: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="11 digits" />
+                </Field>
+              </Row>
+              <Row>
+                <Field label="International Passport Number">
+                  <input className="sb-m-fi" value={s.passport_no} onChange={(e) => updateSponsor({ passport_no: e.target.value })} placeholder="e.g. A01234567" />
+                </Field>
+                <Field label="Sponsor's Phone Number" required>
+                  <input className="sb-m-fi" value={s.phone} onChange={(e) => updateSponsor({ phone: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="08012345678" />
+                </Field>
+              </Row>
+              <Row>
+                <Field label="Relationship to Applicant" required>
+                  <input className="sb-m-fi" value={s.relationship} onChange={(e) => updateSponsor({ relationship: e.target.value })} placeholder="e.g. Father, Uncle, Employer" />
+                </Field>
+                <Field label="BVN" required>
+                  <input className="sb-m-fi" value={s.bvn} onChange={(e) => updateSponsor({ bvn: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="11 digits" />
+                </Field>
+              </Row>
+              <Row>
+                <Field label="Email Address" required>
+                  <input className="sb-m-fi" type="email" value={s.email} onChange={(e) => updateSponsor({ email: e.target.value })} placeholder="sponsor@email.com" />
+                </Field>
+                <Field label="Bank Name" required>
+                  <input className="sb-m-fi" value={s.bank_name} onChange={(e) => updateSponsor({ bank_name: e.target.value })} placeholder="e.g. GTBank" />
+                </Field>
+              </Row>
+              <Row>
+                <Field label="Bank Account Number" required>
+                  <input className="sb-m-fi" value={s.bank_account_number} onChange={(e) => updateSponsor({ bank_account_number: e.target.value.replace(/\D/g, "") })} maxLength={10} placeholder="10 digits" />
+                </Field>
+                <Field label="Bank Account Name" required>
+                  <input className="sb-m-fi" value={s.bank_account_name} onChange={(e) => updateSponsor({ bank_account_name: e.target.value })} placeholder="Name on account" />
+                </Field>
+              </Row>
+
+              <h5 style={{ margin: "16px 0 8px 0", color: "var(--muted)" }}>Sponsor's Home Address</h5>
+              <Row3>
+                <Field label="Country">
+                  <select className="sb-m-fi" value={s.country} onChange={(e) => updateSponsor({ country: e.target.value })}>
+                    {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </Field>
+                <Field label="State">
+                  <select className="sb-m-fi" value={s.state} onChange={(e) => updateSponsor({ state: e.target.value })}>
+                    <option value="">Select state</option>
+                    {NG_STATES.map((st) => <option key={st} value={st}>{st}</option>)}
+                  </select>
+                </Field>
+                <Field label="LGA">
+                  <input className="sb-m-fi" value={s.lga} onChange={(e) => updateSponsor({ lga: e.target.value })} placeholder="e.g. Ikeja" />
+                </Field>
+              </Row3>
+              <Row3>
+                <Field label="House Number">
+                  <input className="sb-m-fi" value={s.house_number} onChange={(e) => updateSponsor({ house_number: e.target.value })} />
+                </Field>
+                <Field label="Street Name">
+                  <input className="sb-m-fi" value={s.street_name} onChange={(e) => updateSponsor({ street_name: e.target.value })} />
+                </Field>
+                <Field label="City / Town">
+                  <input className="sb-m-fi" value={s.city} onChange={(e) => updateSponsor({ city: e.target.value })} />
+                </Field>
+              </Row3>
+
+              <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 12 }}>
+                <input type="checkbox" checked={s.disclaimer_confirmed} onChange={(e) => updateSponsor({ disclaimer_confirmed: e.target.checked })} />
+                <span style={{ fontSize: 13 }}>I confirm that all sponsor information provided above is true and correct.</span>
+              </label>
+
+              <h4 style={{ marginTop: 20 }}>Section 4B (Part II): Sponsor's Witness Details</h4>
+              <Row>
+                <Field label="Witness Full Legal Name" required>
+                  <input className="sb-m-fi" value={state.sponsor_witness.full_name} onChange={(e) => updateWitness({ full_name: e.target.value })} placeholder="Surname, First name Middle name" />
+                </Field>
+                <Field label="NIN" required>
+                  <input className="sb-m-fi" value={state.sponsor_witness.nin} onChange={(e) => updateWitness({ nin: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="11 digits" />
+                </Field>
+              </Row>
+              <Row>
+                <Field label="International Passport Number">
+                  <input className="sb-m-fi" value={state.sponsor_witness.passport_no} onChange={(e) => updateWitness({ passport_no: e.target.value })} />
+                </Field>
+                <Field label="Witness Phone Number">
+                  <input className="sb-m-fi" value={state.sponsor_witness.phone} onChange={(e) => updateWitness({ phone: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="08012345678" />
+                </Field>
+              </Row>
+              <Field label="Witness Email Address">
+                <input className="sb-m-fi" type="email" value={state.sponsor_witness.email} onChange={(e) => updateWitness({ email: e.target.value })} placeholder="witness@email.com" />
+              </Field>
+            </>
+          )}
+
+          {state.sponsor_type === "corporate" && (
+            <>
+              <h4 style={{ marginTop: 20 }}>Section 4C: Corporate Sponsor Details</h4>
+              <Field label="Are you the ONLY authorized signatory director for this company?">
+                <select className="sb-m-fi" value={s.is_sole_signatory ? "YES" : "NO"} onChange={(e) => updateSponsor({ is_sole_signatory: e.target.value === "YES" })}>
+                  <option value="YES">YES</option>
+                  <option value="NO">NO</option>
+                </select>
+              </Field>
+              <Row>
+                <Field label="Company / Corporate Name" required>
+                  <input className="sb-m-fi" value={s.company_name} onChange={(e) => updateSponsor({ company_name: e.target.value })} placeholder="Company name" />
+                </Field>
+                <Field label="CAC Registration Number" required>
+                  <input className="sb-m-fi" value={s.cac_number} onChange={(e) => updateSponsor({ cac_number: e.target.value })} placeholder="e.g. RC123456" />
+                </Field>
+              </Row>
+              <Row>
+                <Field label="Company Bank Account Number" required>
+                  <input className="sb-m-fi" value={s.bank_account_number} onChange={(e) => updateSponsor({ bank_account_number: e.target.value.replace(/\D/g, "") })} maxLength={10} placeholder="10 digits" />
+                </Field>
+                <Field label="Company Bank Account Name" required>
+                  <input className="sb-m-fi" value={s.bank_account_name} onChange={(e) => updateSponsor({ bank_account_name: e.target.value })} placeholder="Exact name on corporate account" />
+                </Field>
+              </Row>
+              <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 12 }}>
+                <input type="checkbox" checked={s.disclaimer_confirmed} onChange={(e) => updateSponsor({ disclaimer_confirmed: e.target.checked })} />
+                <span style={{ fontSize: 13 }}>I confirm that all company information provided above is true and correct.</span>
+              </label>
+
+              {!s.is_sole_signatory && (
+                <>
+                  <h4 style={{ marginTop: 20 }}>Section 4D: Signatory Directors</h4>
+                  <Field label="How many signatory directors are in this company?">
+                    <select className="sb-m-fi" value={state.sponsor_directors.length} onChange={(e) => setDirCount(Number(e.target.value))}>
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n} Director(s)</option>)}
+                    </select>
+                  </Field>
+                  {state.sponsor_directors.map((d, i) => (
+                    <DirectorForm key={i} index={i} director={d} onChange={(patch) => updateDir(i, patch)} />
+                  ))}
+                </>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+function DirectorForm({ index, director, onChange }: { index: number; director: Director; onChange: (patch: Partial<Director>) => void }) {
+  return (
+    <div style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 12, marginBottom: 12, background: "var(--bg)" }}>
+      <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 13 }}>Director #{index + 1}</div>
+      <Row>
+        <Field label="Full Legal Name" required>
+          <input className="sb-m-fi" value={director.full_name} onChange={(e) => onChange({ full_name: e.target.value })} />
+        </Field>
+        <Field label="NIN" required>
+          <input className="sb-m-fi" value={director.nin} onChange={(e) => onChange({ nin: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="11 digits" />
+        </Field>
+      </Row>
+      <Row>
+        <Field label="Phone Number" required>
+          <input className="sb-m-fi" value={director.phone} onChange={(e) => onChange({ phone: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="08012345678" />
+        </Field>
+        <Field label="Email Address" required>
+          <input className="sb-m-fi" type="email" value={director.email} onChange={(e) => onChange({ email: e.target.value })} placeholder="director@email.com" />
+        </Field>
+      </Row>
+      <Row>
+        <Field label="Bank Name" required>
+          <input className="sb-m-fi" value={director.bank_name} onChange={(e) => onChange({ bank_name: e.target.value })} />
+        </Field>
+        <Field label="Bank Account Number" required>
+          <input className="sb-m-fi" value={director.bank_account_number} onChange={(e) => onChange({ bank_account_number: e.target.value.replace(/\D/g, "") })} maxLength={10} />
+        </Field>
+      </Row>
+      <Field label="Bank Account Name" required>
+        <input className="sb-m-fi" value={director.bank_account_name} onChange={(e) => onChange({ bank_account_name: e.target.value })} />
+      </Field>
+      <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 8 }}>
+        <input type="checkbox" checked={director.disclaimer_confirmed} onChange={(e) => onChange({ disclaimer_confirmed: e.target.checked })} />
+        <span style={{ fontSize: 12 }}>I confirm this director's information is true and correct.</span>
+      </label>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 6 — Bank & Loan Details (disbursement + amount/duration/purpose)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function Step6BankLoan({ state, update, baseline }: { state: WizardState; update: Updater; baseline?: Baseline }) {
+  const setDirCount = (n: number) => {
+    const cur = state.applicant_directors;
+    if (n > cur.length) {
+      update({ applicant_directors: [...cur, ...Array.from({ length: n - cur.length }, emptyDirector)] });
+    } else {
+      update({ applicant_directors: cur.slice(0, n) });
+    }
+  };
+  const updateAppDir = (i: number, patch: Partial<Director>) => {
+    const list = [...state.applicant_directors];
+    list[i] = { ...list[i], ...patch };
+    update({ applicant_directors: list });
+  };
+
+  const indicativeRepayable = state.amount && baseline
+    ? Number(state.amount) * (1 + (Number(baseline.baseline_monthly_rate_pct) / 100) * (state.duration_days / 30))
+    : null;
+
+  return (
+    <>
+      <h4>Section 5: Disbursement Bank Account Details</h4>
+      <Field label="Account Category">
+        <select className="sb-m-fi" value={state.applicant_type} onChange={(e) => update({ applicant_type: e.target.value as "individual" | "corporate" })}>
+          <option value="individual">Personal Bank Account</option>
+          <option value="corporate">Corporate Business Bank Account</option>
+        </select>
+      </Field>
+
+      {state.applicant_type === "individual" && (
+        <>
+          <Row>
+            <Field label="Bank Name" required>
+              <input className="sb-m-fi" value={state.bank_name} onChange={(e) => update({ bank_name: e.target.value })} placeholder="e.g. Access Bank" />
+            </Field>
+            <Field label="Account Name" required>
+              <input className="sb-m-fi" value={state.bank_account_name} onChange={(e) => update({ bank_account_name: e.target.value })} placeholder="Exact name on account" />
+            </Field>
+          </Row>
+          <Field label="Account Number" required>
+            <input className="sb-m-fi" value={state.bank_account_number} onChange={(e) => update({ bank_account_number: e.target.value.replace(/\D/g, "") })} maxLength={10} placeholder="10 digits" />
+          </Field>
+        </>
+      )}
+
+      {state.applicant_type === "corporate" && (
+        <>
+          <h4 style={{ marginTop: 20 }}>Section 5B: Applicant Company Details</h4>
+          <Field label="Are you the ONLY authorized signatory director for this company?">
+            <select className="sb-m-fi" value={state.applicant_is_sole_signatory ? "YES" : "NO"} onChange={(e) => update({ applicant_is_sole_signatory: e.target.value === "YES" })}>
+              <option value="YES">YES</option>
+              <option value="NO">NO</option>
+            </select>
+          </Field>
+          <Row>
+            <Field label="Company Name" required>
+              <input className="sb-m-fi" value={state.applicant_company_name} onChange={(e) => update({ applicant_company_name: e.target.value })} />
+            </Field>
+            <Field label="CAC Registration Number" required>
+              <input className="sb-m-fi" value={state.applicant_cac_number} onChange={(e) => update({ applicant_cac_number: e.target.value })} placeholder="e.g. RC123456" />
+            </Field>
+          </Row>
+          <Row>
+            <Field label="Company Bank Account Number" required>
+              <input className="sb-m-fi" value={state.applicant_bank_account_number} onChange={(e) => update({ applicant_bank_account_number: e.target.value.replace(/\D/g, "") })} maxLength={10} />
+            </Field>
+            <Field label="Company Bank Account Name" required>
+              <input className="sb-m-fi" value={state.applicant_bank_account_name} onChange={(e) => update({ applicant_bank_account_name: e.target.value })} placeholder="Exact name on account" />
+            </Field>
+          </Row>
+
+          {!state.applicant_is_sole_signatory && (
+            <>
+              <h4 style={{ marginTop: 20 }}>Section 5C: Company Signatory Directors</h4>
+              <Field label="How many signatory directors are in this company?">
+                <select className="sb-m-fi" value={state.applicant_directors.length} onChange={(e) => setDirCount(Number(e.target.value))}>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n} Director(s)</option>)}
+                </select>
+              </Field>
+              {state.applicant_directors.map((d, i) => (
+                <DirectorForm key={i} index={i} director={d} onChange={(patch) => updateAppDir(i, patch)} />
+              ))}
+            </>
+          )}
+        </>
+      )}
+
+      <h4 style={{ marginTop: 24 }}>Section 6: Loan Details</h4>
+      <Row>
+        <Field label="Requested Loan Amount (₦)" required>
+          <input
+            className="sb-m-fi"
+            type="text"
+            inputMode="numeric"
+            placeholder="e.g. 500,000"
+            value={state.amount ? Number(state.amount).toLocaleString() : ""}
+            onChange={(e) => update({ amount: e.target.value.replace(/\D/g, "") })}
+          />
+        </Field>
+        <Field label="Loan Duration" required>
+          <select className="sb-m-fi" value={state.duration_days} onChange={(e) => update({ duration_days: Number(e.target.value) })}>
+            {DURATIONS.map((d) => <option key={d} value={d}>{d} days</option>)}
+          </select>
+        </Field>
+      </Row>
+      <Row>
+        <Field label="Interest Rate (indicative)">
+          <input className="sb-m-fi" value={baseline ? `${baseline.baseline_monthly_rate_pct}% per month (baseline)` : "Set by agent"} disabled />
+        </Field>
+        <Field label="Purpose of Loan" required>
+          <input className="sb-m-fi" value={state.purpose} onChange={(e) => update({ purpose: e.target.value })} placeholder="Briefly state what the funds will be used for" />
+        </Field>
+      </Row>
+      {indicativeRepayable && (
+        <div style={{ background: "var(--bg)", padding: 12, borderRadius: 6, fontSize: 13 }}>
+          Indicative total repayable: <strong>{fmtMoney(indicativeRepayable)}</strong> — final rate confirmed by your agent.
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 7 — Declaration + Documents + Attestation
+// ─────────────────────────────────────────────────────────────────────────────
+
+function Step7DeclarationDocs({
+  state, update, onFile, onAdditional,
+}: {
+  state: WizardState;
+  update: Updater;
+  onFile: (key: string) => (e: ChangeEvent<HTMLInputElement>) => void;
+  onAdditional: (e: ChangeEvent<HTMLInputElement>) => void;
+}) {
+  const psd = productSpecificDoc(state.product);
+  return (
+    <>
+      <h4>Section 7: Statutory Declaration (Oaths Act, 1990)</h4>
+      <Field label="Full Legal Name of Declarant">
+        <input className="sb-m-fi" value={state.declaration_name} onChange={(e) => update({ declaration_name: e.target.value })} placeholder="Surname, First name Middle name" />
+      </Field>
+      <div style={{ background: "var(--bg)", padding: 14, borderRadius: 6, fontSize: 13, lineHeight: 1.6, marginBottom: 12, maxHeight: 180, overflowY: "auto" }}>
+        I solemnly and sincerely declare, in line with the <strong>Oaths Act, 1990</strong>, that: I am in good health; I have reached the legal age of maturity; I am of sound mind and fully capable of entering into a legal contract; I have not been convicted of fraud, financial crimes, or dishonesty in the last five (5) years; I am not bankrupt; I do not have any unpaid or outstanding loans with this platform; and I am signing this agreement freely and without any force or pressure from anyone.
+      </div>
+      <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+        <input type="checkbox" checked={state.declaration_accepted} onChange={(e) => update({ declaration_accepted: e.target.checked })} />
+        <span style={{ fontSize: 13 }}>I accept the statutory declaration above.</span>
+      </label>
+
+      <h4 style={{ marginTop: 24 }}>Section 8: Required Upload Documents</h4>
+      <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>Maximum file size: 8 MB. Accepted formats: PDF, JPG, PNG.</p>
+
+      <FileField label="1. Valid Government ID (NIN slip or passport data page)" required onChange={onFile("gov_id")} file={state.files.gov_id} />
+      <FileField label={`2. ${psd.label}`} required={psd.required} onChange={onFile("product_specific")} file={state.files.product_specific} />
+      {state.product === "Student POF" && (
+        <FileField label="3. School Admission Fee Payment Receipt" required onChange={onFile("admission_receipt")} file={state.files.admission_receipt} />
+      )}
+      <FileField label="Bank Statement (last 3 months)" required onChange={onFile("bank_statement")} file={state.files.bank_statement} />
+      <FileField label="Proof of Address (≤ 3 months old)" required onChange={onFile("proof_of_address")} file={state.files.proof_of_address} />
+
       <div className="sb-m-fg">
         <label className="sb-m-fl">Additional documents (optional)</label>
-        <input type="file" multiple onChange={onAdditional} />
+        <input className="sb-m-fi" type="file" multiple onChange={onAdditional} />
         {state.additionalFiles.length > 0 && (
-          <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
-            {state.additionalFiles.length} file{state.additionalFiles.length !== 1 ? "s" : ""} selected
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+            {state.additionalFiles.length} file(s) selected
           </div>
         )}
       </div>
+
+      <h4 style={{ marginTop: 24 }}>Section 9: Applicant Sign-Off Attestation</h4>
+      <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8, fontStyle: "italic" }}>
+        By typing your name below, you swear and agree that all information you provided in this form is completely true, accurate, and correct under the penalty of law.
+      </p>
+      <Field label="Applicant Electronic Signature (type your full legal name)" required>
+        <input className="sb-m-fi" value={state.attestation_signed_name} onChange={(e) => update({ attestation_signed_name: e.target.value })} placeholder="Surname, First name Middle name" />
+      </Field>
     </>
   );
 }
 
-function DocSlot({ label, file, onChange }: { label: string; file: File | null; onChange: (e: ChangeEvent<HTMLInputElement>) => void }) {
+function FileField({ label, required, file, onChange }: {
+  label: string; required?: boolean; file: File | null;
+  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
+}) {
   return (
-    <div className="sb-m-fg" style={{ borderTop: "1px solid var(--border)", paddingTop: 12 }}>
-      <label className="sb-m-fl">{label}</label>
-      <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={onChange} />
-      {file && <div style={{ fontSize: 11, color: "var(--green)", marginTop: 4 }}>✓ {file.name} ({(file.size / 1024).toFixed(0)} KB)</div>}
+    <div className="sb-m-fg">
+      <label className="sb-m-fl">
+        {label} {required && <span style={{ color: "var(--red)" }}>*</span>}
+      </label>
+      <input className="sb-m-fi" type="file" accept="image/*,application/pdf" onChange={onChange} />
+      {file && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>Selected: {file.name}</div>}
     </div>
   );
 }
 
-function DeclarationStep({ state, update }: { state: WizardState; update: (p: Partial<WizardState>) => void }) {
-  const items: { key: keyof WizardState["declaration"]; text: string }[] = [
-    { key: "infant", text: "I am not an infant." },
-    { key: "sound", text: "I am not a person of unsound mind." },
-    { key: "fraud", text: "I have not been convicted of any offence involving fraud or dishonesty within the last five years." },
-    { key: "bankrupt", text: "I am not an undischarged bankrupt." },
-  ];
-  return (
-    <>
-      <div className="sb-card-title">Declaration</div>
-      <div className="sb-card-sub">I solemnly and sincerely declare (in accordance with the Oaths Act, 1990) that:</div>
-      <div style={{ display: "grid", gap: 10, marginTop: 8 }}>
-        {items.map((d) => (
-          <label key={d.key} style={{ display: "flex", gap: 10, padding: 10, border: "1px solid var(--border)", borderRadius: 8, cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={state.declaration[d.key]}
-              onChange={(e) => update({ declaration: { ...state.declaration, [d.key]: e.target.checked } })}
-              style={{ accentColor: "var(--blue)" }}
-            />
-            <span style={{ fontSize: 13, color: "var(--ink)" }}>{d.text}</span>
-          </label>
-        ))}
-      </div>
-    </>
-  );
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 8 — Review & Submit
+// ─────────────────────────────────────────────────────────────────────────────
 
-function ReviewStep({ state, agents, baseline }: { state: WizardState; agents: Agent[]; baseline?: Baseline }) {
+function Step8Review({ state, update, agents, baseline }: { state: WizardState; update: Updater; agents: Agent[]; baseline?: Baseline }) {
   const agent = agents.find((a) => a.id === state.agent_id);
-  const principal = Number(state.amount || 0);
-  const months = state.duration_days / 30;
-  const indicativeRepayable = baseline ? principal * (1 + (baseline.baseline_monthly_rate_pct / 100) * months) : null;
+  const indicativeRepayable = state.amount && baseline
+    ? Number(state.amount) * (1 + (Number(baseline.baseline_monthly_rate_pct) / 100) * (state.duration_days / 30))
+    : null;
 
   return (
     <>
-      <div className="sb-card-title">Review & submit</div>
-      <div className="sb-card-sub">Confirm everything below. Your agent will quote a final interest rate after submission.</div>
-      <Row label="Agent" value={agent?.full_name || "—"} />
-      <Row label="Product" value={state.product} />
-      <Row label="Amount" value={fmtMoney(state.amount)} />
-      <Row label="Duration" value={`${state.duration_days} days`} />
-      {indicativeRepayable !== null && (
-        <Row label="Indicative repayable (at baseline rate)" value={fmtMoney(Math.round(indicativeRepayable))} />
-      )}
-      <Row label="Purpose" value={state.purpose} />
-      <Row label="Int'l passport" value={state.int_passport_no} />
-      <Row label="Address" value={state.borrower_address} />
-      <Row label="Bank" value={`${state.bank_name} • ${state.bank_account_number} • ${state.bank_account_name}`} />
-      <Row label="NOK" value={`${state.nok_name} (${state.nok_relationship}) • ${state.nok_phone}`} />
-      <Row label="Documents" value={`${Object.values(state.files).filter(Boolean).length}/4 required${state.additionalFiles.length ? ` + ${state.additionalFiles.length} additional` : ""}`} />
+      <h4>Section 10: Third-Party Notifications</h4>
+      <div style={{ background: "var(--green-lt)", borderLeft: "4px solid var(--green)", padding: 14, fontSize: 12, marginBottom: 18 }}>
+        <strong>Notice:</strong> Once you submit, our system will notify your listed sponsor, witnesses, and agent (if agent-assisted) to complete their part of the application.
+      </div>
+
+      <h4>Section 11: Review Your Application</h4>
+      <SummaryRow k="Loan Category" v={state.product} />
+      <SummaryRow k="Returning Borrower" v={state.is_returning_borrower ? "Yes" : "No"} />
+      <SummaryRow k="Applicant Name" v={state.full_name || state.company_name || state.attestation_signed_name || "—"} />
+      <SummaryRow k="Purpose" v={state.purpose} />
+      <SummaryRow k="Amount Requested" v={fmtMoney(state.amount)} />
+      <SummaryRow k="Duration" v={`${state.duration_days} days`} />
+      <SummaryRow k="Indicative Repayable" v={indicativeRepayable ? fmtMoney(indicativeRepayable) : "—"} />
+      <SummaryRow k="Application Type" v={state.agent_route === "agent_assisted" ? `Agent-Assisted (${agent?.full_name || agent?.email || "—"})` : "Direct"} />
+      <SummaryRow k="Applicant Type" v={state.applicant_type === "individual" ? "Individual" : "Corporate"} />
+      <SummaryRow k="Disbursement Bank" v={state.applicant_type === "individual" ? `${state.bank_name} · ${state.bank_account_number}` : `${state.applicant_company_name}`} />
+      <SummaryRow k="Sponsor" v={state.has_sponsor ? `${state.sponsor_type === "personal" ? state.sponsor.full_name : state.sponsor.company_name}` : "None"} />
+      <SummaryRow k="Documents Uploaded" v={String(Object.values(state.files).filter(Boolean).length + state.additionalFiles.length)} />
+
+      <label style={{ display: "flex", gap: 10, alignItems: "flex-start", marginTop: 18, border: "2px solid var(--blue)", padding: 14, borderRadius: 8, background: "var(--blue-lt)" }}>
+        <input type="checkbox" checked={state.master_confirmed} onChange={(e) => update({ master_confirmed: e.target.checked })} />
+        <span style={{ fontSize: 13, fontWeight: 600 }}>
+          Final Declaration: I confirm that everything in this application is true and complete.
+        </span>
+      </label>
     </>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function SummaryRow({ k, v }: { k: string; v: string }) {
   return (
-    <div className="sb-sr">
-      <span className="sb-sr-l">{label}</span>
-      <span className="sb-sr-r" style={{ textAlign: "right", maxWidth: "60%" }}>{value}</span>
+    <div style={{ display: "flex", padding: "8px 0", borderBottom: "1px dashed var(--border)", fontSize: 13 }}>
+      <div style={{ width: 220, fontWeight: 600, color: "var(--muted)" }}>{k}</div>
+      <div>{v || "—"}</div>
     </div>
   );
 }
