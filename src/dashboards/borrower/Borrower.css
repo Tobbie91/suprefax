@@ -351,6 +351,24 @@
 .sb-m-fi { width: 100%; padding: 10px 13px; border-radius: var(--r3); border: 1.5px solid var(--border); background: var(--white); font-size: 13px; color: var(--ink); outline: none; font-family: inherit; }
 .sb-m-fi:focus { border-color: var(--blue); }
 .sb-m-fi.ro { background: var(--bg); color: var(--muted); }
+select.sb-m-fi {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: var(--white);
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236B6B6B'%3e%3cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.24 4.5a.75.75 0 01-1.08 0l-4.24-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+  padding-right: 34px;
+}
+select.sb-m-fi:disabled {
+  background-color: var(--bg);
+  color: var(--muted);
+  cursor: not-allowed;
+}
 .sb-m-acts { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+.sb-m-actbtn { background: var(--ink); color: var(--white); border: none; padding: 8px 14px; font-size: 11px; font-weight: 700; border-radius: 4px; cursor: pointer; }
+.sb-m-actbtn:hover { background: var(--blue); }
 
 .sb-empty { padding: 40px 20px; text-align: center; color: var(--muted); font-size: 13px; }

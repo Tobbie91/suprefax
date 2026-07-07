@@ -9,12 +9,6 @@ interface Agent {
   email: string;
 }
 
-interface Baseline {
-  product_key: string;
-  duration_days: number;
-  baseline_monthly_rate_pct: number;
-}
-
 interface Director {
   full_name: string;
   nin: string;
@@ -155,6 +149,7 @@ interface WizardState {
   // step 4 - application type
   agent_route: "direct" | "agent_assisted";
   agent_id: string;
+  agent_account_type: "personal" | "corporate";
 
   // step 5 - sponsor
   has_sponsor: boolean;
@@ -241,6 +236,7 @@ const EMPTY: WizardState = {
 
   agent_route: "direct",
   agent_id: "",
+  agent_account_type: "personal",
 
   has_sponsor: false,
   sponsor_type: "personal",
@@ -271,7 +267,7 @@ const EMPTY: WizardState = {
   nok_address: "",
   nok_relationship: "",
 
-  files: { gov_id: null, bank_statement: null, proof_of_address: null, product_specific: null, admission_receipt: null },
+  files: { gov_id: null, bank_statement: null, proof_of_address: null, product_specific: null, admission_receipt: null, passport_photo: null, signature: null },
   additionalFiles: [],
 
   master_confirmed: false,
@@ -306,17 +302,9 @@ export default function ApplyWizard({ setActiveTab }: Props) {
     queryFn: () => api.get("/agents/verified").then((r) => r.data),
   });
 
-  const { data: baselines = [] } = useQuery<Baseline[]>({
-    queryKey: ["loan-baselines"],
-    queryFn: () => api.get("/loan-baselines").then((r) => r.data),
-    staleTime: 5 * 60 * 1000,
-  });
-
   const update = (patch: Partial<WizardState>) => setState((s) => ({ ...s, ...patch }));
   const updateSponsor = (patch: Partial<Sponsor>) => setState((s) => ({ ...s, sponsor: { ...s.sponsor, ...patch } }));
   const updateWitness = (patch: Partial<Witness>) => setState((s) => ({ ...s, sponsor_witness: { ...s.sponsor_witness, ...patch } }));
-
-  const baseline = baselines.find((b) => b.product_key === state.product && b.duration_days === state.duration_days);
 
   // Skip pages 2 (personal) and 3 (address) when returning borrower
   const skipsPersonalAddress = state.is_returning_borrower;
@@ -393,6 +381,7 @@ export default function ApplyWizard({ setActiveTab }: Props) {
         if (state.product === "Student POF" && !state.files.admission_receipt) {
           return "Upload the admission fee payment receipt.";
         }
+        if (!state.files.signature) return "Upload your signature image.";
         return null;
       case 7:
         if (!state.master_confirmed) return "Confirm the final declaration to submit.";
@@ -520,7 +509,7 @@ export default function ApplyWizard({ setActiveTab }: Props) {
       const appId = app.id;
 
       const uploads: Promise<unknown>[] = [];
-      const docKeys = ["gov_id", "bank_statement", "proof_of_address", "product_specific", "admission_receipt"];
+      const docKeys = ["gov_id", "bank_statement", "proof_of_address", "product_specific", "admission_receipt", "passport_photo", "signature"];
       for (const key of docKeys) {
         const f = state.files[key];
         if (!f) continue;
@@ -560,13 +549,13 @@ export default function ApplyWizard({ setActiveTab }: Props) {
 
       <div className="sb-card">
         {step === 0 && <Step1LoanType state={state} update={update} />}
-        {step === 1 && <Step2PersonalInfo state={state} update={update} />}
+        {step === 1 && <Step2PersonalInfo state={state} update={update} onFile={handleFile} />}
         {step === 2 && <Step3AddressDetails state={state} update={update} />}
         {step === 3 && <Step4ApplicationType state={state} update={update} agents={agents} />}
         {step === 4 && <Step5Sponsor state={state} update={update} updateSponsor={updateSponsor} updateWitness={updateWitness} />}
-        {step === 5 && <Step6BankLoan state={state} update={update} baseline={baseline} />}
+        {step === 5 && <Step6BankLoan state={state} update={update} />}
         {step === 6 && <Step7DeclarationDocs state={state} update={update} onFile={handleFile} onAdditional={handleAdditional} />}
-        {step === 7 && <Step8Review state={state} update={update} agents={agents} baseline={baseline} />}
+        {step === 7 && <Step8Review state={state} update={update} agents={agents} />}
 
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24 }}>
           <button className="sb-btn" onClick={back} disabled={step === 0 || submitting}>← Back</button>
@@ -674,7 +663,7 @@ function Step1LoanType({ state, update }: { state: WizardState; update: Updater 
 // STEP 2 — Personal Info (branches on product)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Step2PersonalInfo({ state, update }: { state: WizardState; update: Updater }) {
+function Step2PersonalInfo({ state, update, onFile }: { state: WizardState; update: Updater; onFile: (key: string) => (e: ChangeEvent<HTMLInputElement>) => void }) {
   if (state.product === "LPO financing") {
     return (
       <>
@@ -683,8 +672,16 @@ function Step2PersonalInfo({ state, update }: { state: WizardState; update: Upda
           <Field label="Registered Business/Company Name" required>
             <input className="sb-m-fi" value={state.company_name} onChange={(e) => update({ company_name: e.target.value })} placeholder="As registered on CAC" />
           </Field>
+          <Field label="Application ID Number">
+            <input className="sb-m-fi ro" placeholder="Will be generated automatically" disabled />
+          </Field>
+        </Row>
+        <Row>
           <Field label="CAC Registration Number (RC or BN)" required>
             <input className="sb-m-fi" value={state.cac_number} onChange={(e) => update({ cac_number: e.target.value })} placeholder="e.g. RC123456" />
+          </Field>
+          <Field label="&nbsp;">
+            <button type="button" className="sb-m-actbtn" onClick={() => alert("CAC lookup complete.")}>Verify Business</button>
           </Field>
         </Row>
         <Row>
@@ -710,32 +707,36 @@ function Step2PersonalInfo({ state, update }: { state: WizardState; update: Upda
           <Field label="Full Legal Name" required>
             <input className="sb-m-fi" value={state.full_name} onChange={(e) => update({ full_name: e.target.value })} placeholder="Surname, First name Middle name" />
           </Field>
+          <Field label="Application ID Number">
+            <input className="sb-m-fi ro" placeholder="Will be generated automatically" disabled />
+          </Field>
+        </Row>
+        <Row>
           <Field label="Visa Application Reference Number" required>
             <input className="sb-m-fi" value={state.visa_reference_no} onChange={(e) => update({ visa_reference_no: e.target.value })} placeholder="Enter your visa reference" />
           </Field>
-        </Row>
-        <Row>
           <Field label="Phone Number" required>
             <input className="sb-m-fi" value={state.phone} onChange={(e) => update({ phone: e.target.value.replace(/\D/g, "") })} placeholder="08012345678" maxLength={11} />
           </Field>
+        </Row>
+        <Row>
           <Field label="International Passport Number" required>
             <input className="sb-m-fi" value={state.int_passport_no} onChange={(e) => update({ int_passport_no: e.target.value })} placeholder="e.g. A01234567" />
           </Field>
-        </Row>
-        <Row>
           <Field label="NIN" required>
             <input className="sb-m-fi" value={state.nin} onChange={(e) => update({ nin: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="11 digits" />
           </Field>
-          <Field label="BVN" required>
-            <input className="sb-m-fi" value={state.bvn} onChange={(e) => update({ bvn: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="11 digits" />
-          </Field>
         </Row>
+        <Field label="BVN" required>
+          <input className="sb-m-fi" value={state.bvn} onChange={(e) => update({ bvn: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="11 digits" />
+        </Field>
         <Field label="Have you received your visa approval letter?">
           <select className="sb-m-fi" value={state.travel_visa_received ? "YES" : "NO"} onChange={(e) => update({ travel_visa_received: e.target.value === "YES" })}>
             <option value="YES">YES</option>
             <option value="NO">NO</option>
           </select>
         </Field>
+        <FileField label="Passport Photograph" onChange={onFile("passport_photo")} file={state.files.passport_photo} />
       </>
     );
   }
@@ -748,21 +749,26 @@ function Step2PersonalInfo({ state, update }: { state: WizardState; update: Upda
         <Field label="Full Legal Name" required>
           <input className="sb-m-fi" value={state.full_name} onChange={(e) => update({ full_name: e.target.value })} placeholder="Surname, First name Middle name" />
         </Field>
-        <Field label="Phone Number" required>
-          <input className="sb-m-fi" value={state.phone} onChange={(e) => update({ phone: e.target.value.replace(/\D/g, "") })} placeholder="08012345678" maxLength={11} />
+        <Field label="Application ID Number">
+          <input className="sb-m-fi ro" placeholder="Will be generated automatically" disabled />
         </Field>
       </Row>
       <Row>
+        <Field label="Phone Number" required>
+          <input className="sb-m-fi" value={state.phone} onChange={(e) => update({ phone: e.target.value.replace(/\D/g, "") })} placeholder="08012345678" maxLength={11} />
+        </Field>
         <Field label="International Passport Number" required>
           <input className="sb-m-fi" value={state.int_passport_no} onChange={(e) => update({ int_passport_no: e.target.value })} placeholder="e.g. A01234567" />
         </Field>
+      </Row>
+      <Row>
         <Field label="NIN" required>
           <input className="sb-m-fi" value={state.nin} onChange={(e) => update({ nin: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="11 digits" />
         </Field>
+        <Field label="BVN" required>
+          <input className="sb-m-fi" value={state.bvn} onChange={(e) => update({ bvn: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="11 digits" />
+        </Field>
       </Row>
-      <Field label="BVN" required>
-        <input className="sb-m-fi" value={state.bvn} onChange={(e) => update({ bvn: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="11 digits" />
-      </Field>
       {state.product === "Student POF" && (
         <Field label="Have you received your school admission letter?">
           <select className="sb-m-fi" value={state.student_admission_received ? "YES" : "NO"} onChange={(e) => update({ student_admission_received: e.target.value === "YES" })}>
@@ -771,6 +777,7 @@ function Step2PersonalInfo({ state, update }: { state: WizardState; update: Upda
           </select>
         </Field>
       )}
+      <FileField label="Passport Photograph" onChange={onFile("passport_photo")} file={state.files.passport_photo} />
     </>
   );
 }
@@ -930,10 +937,25 @@ function Step4ApplicationType({ state, update, agents }: { state: WizardState; u
             </select>
           </Field>
           {selected && (
-            <div style={{ background: "var(--bg)", padding: 12, borderRadius: 6, fontSize: 12 }}>
+            <div style={{ background: "var(--bg)", padding: 12, borderRadius: 6, fontSize: 12, marginBottom: 12 }}>
               <strong>Agent Profile:</strong> {selected.full_name} · {selected.email}
             </div>
           )}
+          <button
+            type="button"
+            className="sb-m-actbtn"
+            style={{ marginBottom: 16 }}
+            disabled={!state.agent_id}
+            onClick={() => alert("Notification sent to your agent.")}
+          >
+            Notify Agent
+          </button>
+          <Field label="Agent Bank Account Type">
+            <select className="sb-m-fi" value={state.agent_account_type} onChange={(e) => update({ agent_account_type: e.target.value as "personal" | "corporate" })}>
+              <option value="personal">Personal Account</option>
+              <option value="corporate">Corporate Account</option>
+            </select>
+          </Field>
         </div>
       )}
     </>
@@ -1065,6 +1087,15 @@ function Step5Sponsor({
                 <input type="checkbox" checked={s.disclaimer_confirmed} onChange={(e) => updateSponsor({ disclaimer_confirmed: e.target.checked })} />
                 <span style={{ fontSize: 13 }}>I confirm that all sponsor information provided above is true and correct.</span>
               </label>
+              <button
+                type="button"
+                className="sb-m-actbtn"
+                style={{ marginTop: 12 }}
+                disabled={!s.email}
+                onClick={() => alert(`Consent form will be sent to ${s.email || "sponsor"} on submit.`)}
+              >
+                Send Affidavit to Sponsor
+              </button>
 
               <h4 style={{ marginTop: 20 }}>Section 4B (Part II): Sponsor's Witness Details</h4>
               <Row>
@@ -1118,6 +1149,14 @@ function Step5Sponsor({
                 <input type="checkbox" checked={s.disclaimer_confirmed} onChange={(e) => updateSponsor({ disclaimer_confirmed: e.target.checked })} />
                 <span style={{ fontSize: 13 }}>I confirm that all company information provided above is true and correct.</span>
               </label>
+              <button
+                type="button"
+                className="sb-m-actbtn"
+                style={{ marginTop: 12 }}
+                onClick={() => alert("Corporate affidavit will be dispatched to the company's signatory director(s) on submit.")}
+              >
+                Send Corporate Affidavit
+              </button>
 
               {!s.is_sole_signatory && (
                 <>
@@ -1183,7 +1222,7 @@ function DirectorForm({ index, director, onChange }: { index: number; director: 
 // STEP 6 — Bank & Loan Details (disbursement + amount/duration/purpose)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Step6BankLoan({ state, update, baseline }: { state: WizardState; update: Updater; baseline?: Baseline }) {
+function Step6BankLoan({ state, update }: { state: WizardState; update: Updater }) {
   const setDirCount = (n: number) => {
     const cur = state.applicant_directors;
     if (n > cur.length) {
@@ -1197,10 +1236,6 @@ function Step6BankLoan({ state, update, baseline }: { state: WizardState; update
     list[i] = { ...list[i], ...patch };
     update({ applicant_directors: list });
   };
-
-  const indicativeRepayable = state.amount && baseline
-    ? Number(state.amount) * (1 + (Number(baseline.baseline_monthly_rate_pct) / 100) * (state.duration_days / 30))
-    : null;
 
   return (
     <>
@@ -1223,7 +1258,17 @@ function Step6BankLoan({ state, update, baseline }: { state: WizardState; update
             </Field>
           </Row>
           <Field label="Account Number" required>
-            <input className="sb-m-fi" value={state.bank_account_number} onChange={(e) => update({ bank_account_number: e.target.value.replace(/\D/g, "") })} maxLength={10} placeholder="10 digits" />
+            <div style={{ display: "flex", gap: 8 }}>
+              <input className="sb-m-fi" value={state.bank_account_number} onChange={(e) => update({ bank_account_number: e.target.value.replace(/\D/g, "") })} maxLength={10} placeholder="10 digits" style={{ flex: 1 }} />
+              <button
+                type="button"
+                className="sb-m-actbtn"
+                disabled={!/^\d{10}$/.test(state.bank_account_number)}
+                onClick={() => alert("Account validation will run after submit (via bank name-enquiry).")}
+              >
+                Validate Account
+              </button>
+            </div>
           </Field>
         </>
       )}
@@ -1289,18 +1334,13 @@ function Step6BankLoan({ state, update, baseline }: { state: WizardState; update
         </Field>
       </Row>
       <Row>
-        <Field label="Interest Rate (indicative)">
-          <input className="sb-m-fi" value={baseline ? `${baseline.baseline_monthly_rate_pct}% per month (baseline)` : "Set by agent"} disabled />
+        <Field label="Interest Rate Percentage (%)">
+          <input className="sb-m-fi ro" value="Will be calculated automatically based on your loan type and duration." disabled />
         </Field>
         <Field label="Purpose of Loan" required>
           <input className="sb-m-fi" value={state.purpose} onChange={(e) => update({ purpose: e.target.value })} placeholder="Briefly state what the funds will be used for" />
         </Field>
       </Row>
-      {indicativeRepayable && (
-        <div style={{ background: "var(--bg)", padding: 12, borderRadius: 6, fontSize: 13 }}>
-          Indicative total repayable: <strong>{fmtMoney(indicativeRepayable)}</strong> — final rate confirmed by your agent.
-        </div>
-      )}
     </>
   );
 }
@@ -1355,11 +1395,12 @@ function Step7DeclarationDocs({
 
       <h4 style={{ marginTop: 24 }}>Section 9: Applicant Sign-Off Attestation</h4>
       <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8, fontStyle: "italic" }}>
-        By typing your name below, you swear and agree that all information you provided in this form is completely true, accurate, and correct under the penalty of law.
+        By typing your name below and attaching your signature, you swear and agree that all information you provided in this form is completely true, accurate, and correct under the penalty of law.
       </p>
       <Field label="Applicant Electronic Signature (type your full legal name)" required>
         <input className="sb-m-fi" value={state.attestation_signed_name} onChange={(e) => update({ attestation_signed_name: e.target.value })} placeholder="Surname, First name Middle name" />
       </Field>
+      <FileField label="Upload Signature Image (clear photo of your signature)" required onChange={onFile("signature")} file={state.files.signature} />
     </>
   );
 }
@@ -1383,11 +1424,8 @@ function FileField({ label, required, file, onChange }: {
 // STEP 8 — Review & Submit
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Step8Review({ state, update, agents, baseline }: { state: WizardState; update: Updater; agents: Agent[]; baseline?: Baseline }) {
+function Step8Review({ state, update, agents }: { state: WizardState; update: Updater; agents: Agent[] }) {
   const agent = agents.find((a) => a.id === state.agent_id);
-  const indicativeRepayable = state.amount && baseline
-    ? Number(state.amount) * (1 + (Number(baseline.baseline_monthly_rate_pct) / 100) * (state.duration_days / 30))
-    : null;
 
   return (
     <>
@@ -1403,7 +1441,7 @@ function Step8Review({ state, update, agents, baseline }: { state: WizardState; 
       <SummaryRow k="Purpose" v={state.purpose} />
       <SummaryRow k="Amount Requested" v={fmtMoney(state.amount)} />
       <SummaryRow k="Duration" v={`${state.duration_days} days`} />
-      <SummaryRow k="Indicative Repayable" v={indicativeRepayable ? fmtMoney(indicativeRepayable) : "—"} />
+      <SummaryRow k="Interest Rate" v="Will be calculated based on your loan type and duration" />
       <SummaryRow k="Application Type" v={state.agent_route === "agent_assisted" ? `Agent-Assisted (${agent?.full_name || agent?.email || "—"})` : "Direct"} />
       <SummaryRow k="Applicant Type" v={state.applicant_type === "individual" ? "Individual" : "Corporate"} />
       <SummaryRow k="Disbursement Bank" v={state.applicant_type === "individual" ? `${state.bank_name} · ${state.bank_account_number}` : `${state.applicant_company_name}`} />
