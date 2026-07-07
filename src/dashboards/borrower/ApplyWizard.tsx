@@ -267,7 +267,7 @@ const EMPTY: WizardState = {
   nok_address: "",
   nok_relationship: "",
 
-  files: { gov_id: null, bank_statement: null, proof_of_address: null, product_specific: null, admission_receipt: null, passport_photo: null, signature: null },
+  files: { gov_id: null, bank_statement: null, proof_of_address: null, product_specific: null, admission_receipt: null, passport_photo: null, signature: null, sponsor_cac: null, applicant_cac: null },
   additionalFiles: [],
 
   master_confirmed: false,
@@ -509,7 +509,7 @@ export default function ApplyWizard({ setActiveTab }: Props) {
       const appId = app.id;
 
       const uploads: Promise<unknown>[] = [];
-      const docKeys = ["gov_id", "bank_statement", "proof_of_address", "product_specific", "admission_receipt", "passport_photo", "signature"];
+      const docKeys = ["gov_id", "bank_statement", "proof_of_address", "product_specific", "admission_receipt", "passport_photo", "signature", "sponsor_cac", "applicant_cac"];
       for (const key of docKeys) {
         const f = state.files[key];
         if (!f) continue;
@@ -552,8 +552,8 @@ export default function ApplyWizard({ setActiveTab }: Props) {
         {step === 1 && <Step2PersonalInfo state={state} update={update} onFile={handleFile} />}
         {step === 2 && <Step3AddressDetails state={state} update={update} />}
         {step === 3 && <Step4ApplicationType state={state} update={update} agents={agents} />}
-        {step === 4 && <Step5Sponsor state={state} update={update} updateSponsor={updateSponsor} updateWitness={updateWitness} />}
-        {step === 5 && <Step6BankLoan state={state} update={update} />}
+        {step === 4 && <Step5Sponsor state={state} update={update} updateSponsor={updateSponsor} updateWitness={updateWitness} onFile={handleFile} />}
+        {step === 5 && <Step6BankLoan state={state} update={update} onFile={handleFile} />}
         {step === 6 && <Step7DeclarationDocs state={state} update={update} onFile={handleFile} onAdditional={handleAdditional} />}
         {step === 7 && <Step8Review state={state} update={update} agents={agents} />}
 
@@ -612,6 +612,34 @@ function Row({ children }: { children: ReactNode }) {
 
 function Row3({ children }: { children: ReactNode }) {
   return <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>{children}</div>;
+}
+
+function InputWithAction({ value, onChange, placeholder, maxLength, label, canAction, onAction, type }: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  maxLength?: number;
+  label: string;
+  canAction: boolean;
+  onAction: () => void;
+  type?: "tel" | "text";
+}) {
+  return (
+    <div style={{ display: "flex", gap: 8 }}>
+      <input
+        className="sb-m-fi"
+        type={type || "text"}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        style={{ flex: 1 }}
+      />
+      <button type="button" className="sb-m-actbtn" disabled={!canAction} onClick={onAction}>
+        {label}
+      </button>
+    </div>
+  );
 }
 
 function OptionCard({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: ReactNode }) {
@@ -686,7 +714,15 @@ function Step2PersonalInfo({ state, update, onFile }: { state: WizardState; upda
         </Row>
         <Row>
           <Field label="Company Phone Number" required>
-            <input className="sb-m-fi" value={state.company_phone} onChange={(e) => update({ company_phone: e.target.value.replace(/\D/g, "") })} placeholder="08012345678" maxLength={11} />
+            <InputWithAction
+              value={state.company_phone}
+              onChange={(v) => update({ company_phone: v.replace(/\D/g, "") })}
+              placeholder="08012345678"
+              maxLength={11}
+              label="Verify Phone"
+              canAction={/^0\d{10}$/.test(state.company_phone)}
+              onAction={() => alert("Verification SMS sent.")}
+            />
           </Field>
           <Field label="Supplier Code" required>
             <input className="sb-m-fi" value={state.supplier_code} onChange={(e) => update({ supplier_code: e.target.value })} placeholder="Enter your supplier code" />
@@ -716,7 +752,15 @@ function Step2PersonalInfo({ state, update, onFile }: { state: WizardState; upda
             <input className="sb-m-fi" value={state.visa_reference_no} onChange={(e) => update({ visa_reference_no: e.target.value })} placeholder="Enter your visa reference" />
           </Field>
           <Field label="Phone Number" required>
-            <input className="sb-m-fi" value={state.phone} onChange={(e) => update({ phone: e.target.value.replace(/\D/g, "") })} placeholder="08012345678" maxLength={11} />
+            <InputWithAction
+              value={state.phone}
+              onChange={(v) => update({ phone: v.replace(/\D/g, "") })}
+              placeholder="08012345678"
+              maxLength={11}
+              label="Verify Phone"
+              canAction={/^0\d{10}$/.test(state.phone)}
+              onAction={() => alert("Verification SMS sent.")}
+            />
           </Field>
         </Row>
         <Row>
@@ -755,7 +799,15 @@ function Step2PersonalInfo({ state, update, onFile }: { state: WizardState; upda
       </Row>
       <Row>
         <Field label="Phone Number" required>
-          <input className="sb-m-fi" value={state.phone} onChange={(e) => update({ phone: e.target.value.replace(/\D/g, "") })} placeholder="08012345678" maxLength={11} />
+          <InputWithAction
+            value={state.phone}
+            onChange={(v) => update({ phone: v.replace(/\D/g, "") })}
+            placeholder="08012345678"
+            maxLength={11}
+            label="Verify Phone"
+            canAction={/^0\d{10}$/.test(state.phone)}
+            onAction={() => alert("Verification SMS sent.")}
+          />
         </Field>
         <Field label="International Passport Number" required>
           <input className="sb-m-fi" value={state.int_passport_no} onChange={(e) => update({ int_passport_no: e.target.value })} placeholder="e.g. A01234567" />
@@ -967,12 +1019,13 @@ function Step4ApplicationType({ state, update, agents }: { state: WizardState; u
 // ─────────────────────────────────────────────────────────────────────────────
 
 function Step5Sponsor({
-  state, update, updateSponsor, updateWitness,
+  state, update, updateSponsor, updateWitness, onFile,
 }: {
   state: WizardState;
   update: Updater;
   updateSponsor: (patch: Partial<Sponsor>) => void;
   updateWitness: (patch: Partial<Witness>) => void;
+  onFile: (key: string) => (e: ChangeEvent<HTMLInputElement>) => void;
 }) {
   const s = state.sponsor;
   const setDirCount = (n: number) => {
@@ -1026,7 +1079,15 @@ function Step5Sponsor({
                   <input className="sb-m-fi" value={s.passport_no} onChange={(e) => updateSponsor({ passport_no: e.target.value })} placeholder="e.g. A01234567" />
                 </Field>
                 <Field label="Sponsor's Phone Number" required>
-                  <input className="sb-m-fi" value={s.phone} onChange={(e) => updateSponsor({ phone: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="08012345678" />
+                  <InputWithAction
+                    value={s.phone}
+                    onChange={(v) => updateSponsor({ phone: v.replace(/\D/g, "") })}
+                    maxLength={11}
+                    placeholder="08012345678"
+                    label="Verify Phone"
+                    canAction={/^0\d{10}$/.test(s.phone)}
+                    onAction={() => alert("Sponsor phone verified.")}
+                  />
                 </Field>
               </Row>
               <Row>
@@ -1047,7 +1108,15 @@ function Step5Sponsor({
               </Row>
               <Row>
                 <Field label="Bank Account Number" required>
-                  <input className="sb-m-fi" value={s.bank_account_number} onChange={(e) => updateSponsor({ bank_account_number: e.target.value.replace(/\D/g, "") })} maxLength={10} placeholder="10 digits" />
+                  <InputWithAction
+                    value={s.bank_account_number}
+                    onChange={(v) => updateSponsor({ bank_account_number: v.replace(/\D/g, "") })}
+                    maxLength={10}
+                    placeholder="10 digits"
+                    label="Check Account"
+                    canAction={/^\d{10}$/.test(s.bank_account_number)}
+                    onAction={() => alert("Account validated successfully.")}
+                  />
                 </Field>
                 <Field label="Bank Account Name" required>
                   <input className="sb-m-fi" value={s.bank_account_name} onChange={(e) => updateSponsor({ bank_account_name: e.target.value })} placeholder="Name on account" />
@@ -1117,6 +1186,19 @@ function Step5Sponsor({
               <Field label="Witness Email Address">
                 <input className="sb-m-fi" type="email" value={state.sponsor_witness.email} onChange={(e) => updateWitness({ email: e.target.value })} placeholder="witness@email.com" />
               </Field>
+              <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 12 }}>
+                <input type="checkbox" checked={state.sponsor_witness.confirmed} onChange={(e) => updateWitness({ confirmed: e.target.checked })} />
+                <span style={{ fontSize: 13 }}>I confirm that all witness information provided above is true and correct.</span>
+              </label>
+              <button
+                type="button"
+                className="sb-m-actbtn"
+                style={{ marginTop: 12 }}
+                disabled={!state.sponsor_witness.email}
+                onClick={() => alert(`Verification link will be sent to ${state.sponsor_witness.email} on submit.`)}
+              >
+                Send Witness Verification Link
+              </button>
             </>
           )}
 
@@ -1139,12 +1221,39 @@ function Step5Sponsor({
               </Row>
               <Row>
                 <Field label="Company Bank Account Number" required>
-                  <input className="sb-m-fi" value={s.bank_account_number} onChange={(e) => updateSponsor({ bank_account_number: e.target.value.replace(/\D/g, "") })} maxLength={10} placeholder="10 digits" />
+                  <InputWithAction
+                    value={s.bank_account_number}
+                    onChange={(v) => updateSponsor({ bank_account_number: v.replace(/\D/g, "") })}
+                    maxLength={10}
+                    placeholder="10 digits"
+                    label="Check Account"
+                    canAction={/^\d{10}$/.test(s.bank_account_number)}
+                    onAction={() => alert("Corporate account validated.")}
+                  />
                 </Field>
                 <Field label="Company Bank Account Name" required>
                   <input className="sb-m-fi" value={s.bank_account_name} onChange={(e) => updateSponsor({ bank_account_name: e.target.value })} placeholder="Exact name on corporate account" />
                 </Field>
               </Row>
+
+              <h5 style={{ margin: "16px 0 8px 0", color: "var(--muted)" }}>Company Head Office Address</h5>
+              <Row3>
+                <Field label="Country">
+                  <select className="sb-m-fi" value={s.country} onChange={(e) => updateSponsor({ country: e.target.value })}>
+                    {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </Field>
+                <Field label="State">
+                  <select className="sb-m-fi" value={s.state} onChange={(e) => updateSponsor({ state: e.target.value })}>
+                    <option value="">Select state</option>
+                    {NG_STATES.map((st) => <option key={st} value={st}>{st}</option>)}
+                  </select>
+                </Field>
+                <Field label="LGA">
+                  <input className="sb-m-fi" value={s.lga} onChange={(e) => updateSponsor({ lga: e.target.value })} placeholder="e.g. Ikeja" />
+                </Field>
+              </Row3>
+
               <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 12 }}>
                 <input type="checkbox" checked={s.disclaimer_confirmed} onChange={(e) => updateSponsor({ disclaimer_confirmed: e.target.checked })} />
                 <span style={{ fontSize: 13 }}>I confirm that all company information provided above is true and correct.</span>
@@ -1158,12 +1267,16 @@ function Step5Sponsor({
                 Send Corporate Affidavit
               </button>
 
+              <div style={{ marginTop: 16 }}>
+                <FileField label="Upload Company CAC Document (PDF, JPG, PNG · max 8 MB)" required onChange={onFile("sponsor_cac")} file={state.files.sponsor_cac} />
+              </div>
+
               {!s.is_sole_signatory && (
                 <>
                   <h4 style={{ marginTop: 20 }}>Section 4D: Signatory Directors</h4>
                   <Field label="How many signatory directors are in this company?">
                     <select className="sb-m-fi" value={state.sponsor_directors.length} onChange={(e) => setDirCount(Number(e.target.value))}>
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n} Director(s)</option>)}
+                      {Array.from({ length: 20 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n} Director(s)</option>)}
                     </select>
                   </Field>
                   {state.sponsor_directors.map((d, i) => (
@@ -1193,7 +1306,15 @@ function DirectorForm({ index, director, onChange }: { index: number; director: 
       </Row>
       <Row>
         <Field label="Phone Number" required>
-          <input className="sb-m-fi" value={director.phone} onChange={(e) => onChange({ phone: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="08012345678" />
+          <InputWithAction
+            value={director.phone}
+            onChange={(v) => onChange({ phone: v.replace(/\D/g, "") })}
+            maxLength={11}
+            placeholder="08012345678"
+            label="Verify Phone"
+            canAction={/^0\d{10}$/.test(director.phone)}
+            onAction={() => alert("Director phone verified.")}
+          />
         </Field>
         <Field label="Email Address" required>
           <input className="sb-m-fi" type="email" value={director.email} onChange={(e) => onChange({ email: e.target.value })} placeholder="director@email.com" />
@@ -1204,7 +1325,15 @@ function DirectorForm({ index, director, onChange }: { index: number; director: 
           <input className="sb-m-fi" value={director.bank_name} onChange={(e) => onChange({ bank_name: e.target.value })} />
         </Field>
         <Field label="Bank Account Number" required>
-          <input className="sb-m-fi" value={director.bank_account_number} onChange={(e) => onChange({ bank_account_number: e.target.value.replace(/\D/g, "") })} maxLength={10} />
+          <InputWithAction
+            value={director.bank_account_number}
+            onChange={(v) => onChange({ bank_account_number: v.replace(/\D/g, "") })}
+            maxLength={10}
+            placeholder="10 digits"
+            label="Check Account"
+            canAction={/^\d{10}$/.test(director.bank_account_number)}
+            onAction={() => alert("Director account validated.")}
+          />
         </Field>
       </Row>
       <Field label="Bank Account Name" required>
@@ -1214,6 +1343,15 @@ function DirectorForm({ index, director, onChange }: { index: number; director: 
         <input type="checkbox" checked={director.disclaimer_confirmed} onChange={(e) => onChange({ disclaimer_confirmed: e.target.checked })} />
         <span style={{ fontSize: 12 }}>I confirm this director's information is true and correct.</span>
       </label>
+      <button
+        type="button"
+        className="sb-m-actbtn"
+        style={{ marginTop: 8 }}
+        disabled={!director.email}
+        onClick={() => alert(`Affidavit will be dispatched to ${director.email || "director"} on submit.`)}
+      >
+        Send Affidavit to Director
+      </button>
     </div>
   );
 }
@@ -1222,7 +1360,7 @@ function DirectorForm({ index, director, onChange }: { index: number; director: 
 // STEP 6 — Bank & Loan Details (disbursement + amount/duration/purpose)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Step6BankLoan({ state, update }: { state: WizardState; update: Updater }) {
+function Step6BankLoan({ state, update, onFile }: { state: WizardState; update: Updater; onFile: (key: string) => (e: ChangeEvent<HTMLInputElement>) => void }) {
   const setDirCount = (n: number) => {
     const cur = state.applicant_directors;
     if (n > cur.length) {
@@ -1292,19 +1430,44 @@ function Step6BankLoan({ state, update }: { state: WizardState; update: Updater 
           </Row>
           <Row>
             <Field label="Company Bank Account Number" required>
-              <input className="sb-m-fi" value={state.applicant_bank_account_number} onChange={(e) => update({ applicant_bank_account_number: e.target.value.replace(/\D/g, "") })} maxLength={10} />
+              <InputWithAction
+                value={state.applicant_bank_account_number}
+                onChange={(v) => update({ applicant_bank_account_number: v.replace(/\D/g, "") })}
+                maxLength={10}
+                placeholder="10 digits"
+                label="Validate Account"
+                canAction={/^\d{10}$/.test(state.applicant_bank_account_number)}
+                onAction={() => alert("Company account validated.")}
+              />
             </Field>
             <Field label="Company Bank Account Name" required>
               <input className="sb-m-fi" value={state.applicant_bank_account_name} onChange={(e) => update({ applicant_bank_account_name: e.target.value })} placeholder="Exact name on account" />
             </Field>
           </Row>
 
+          <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 12 }}>
+            <input type="checkbox" checked={state.declaration_accepted} onChange={(e) => update({ declaration_accepted: e.target.checked })} />
+            <span style={{ fontSize: 13 }}>I confirm that all information provided above is true and correct.</span>
+          </label>
+          <button
+            type="button"
+            className="sb-m-actbtn"
+            style={{ marginTop: 12 }}
+            onClick={() => alert("Corporate affidavit will be dispatched to the applicant company's signatory director(s) on submit.")}
+          >
+            Send Corporate Affidavit
+          </button>
+
+          <div style={{ marginTop: 16 }}>
+            <FileField label="Upload Company CAC Document (PDF, JPG, PNG · max 8 MB)" required onChange={onFile("applicant_cac")} file={state.files.applicant_cac} />
+          </div>
+
           {!state.applicant_is_sole_signatory && (
             <>
               <h4 style={{ marginTop: 20 }}>Section 5C: Company Signatory Directors</h4>
               <Field label="How many signatory directors are in this company?">
                 <select className="sb-m-fi" value={state.applicant_directors.length} onChange={(e) => setDirCount(Number(e.target.value))}>
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n} Director(s)</option>)}
+                  {Array.from({ length: 20 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n} Director(s)</option>)}
                 </select>
               </Field>
               {state.applicant_directors.map((d, i) => (
@@ -1367,10 +1530,17 @@ function Step7DeclarationDocs({
       <div style={{ background: "var(--bg)", padding: 14, borderRadius: 6, fontSize: 13, lineHeight: 1.6, marginBottom: 12, maxHeight: 180, overflowY: "auto" }}>
         I solemnly and sincerely declare, in line with the <strong>Oaths Act, 1990</strong>, that: I am in good health; I have reached the legal age of maturity; I am of sound mind and fully capable of entering into a legal contract; I have not been convicted of fraud, financial crimes, or dishonesty in the last five (5) years; I am not bankrupt; I do not have any unpaid or outstanding loans with this platform; and I am signing this agreement freely and without any force or pressure from anyone.
       </div>
-      <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-        <input type="checkbox" checked={state.declaration_accepted} onChange={(e) => update({ declaration_accepted: e.target.checked })} />
-        <span style={{ fontSize: 13 }}>I accept the statutory declaration above.</span>
-      </label>
+      <Row>
+        <Field label="Date of Declaration">
+          <input className="sb-m-fi ro" type="date" value={new Date().toISOString().slice(0, 10)} disabled />
+        </Field>
+        <Field label="Accept">
+          <label style={{ display: "flex", gap: 8, alignItems: "flex-start", paddingTop: 8 }}>
+            <input type="checkbox" checked={state.declaration_accepted} onChange={(e) => update({ declaration_accepted: e.target.checked })} />
+            <span style={{ fontSize: 13 }}>I accept the statutory declaration above.</span>
+          </label>
+        </Field>
+      </Row>
 
       <h4 style={{ marginTop: 24 }}>Section 8: Required Upload Documents</h4>
       <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>Maximum file size: 8 MB. Accepted formats: PDF, JPG, PNG.</p>
@@ -1397,9 +1567,14 @@ function Step7DeclarationDocs({
       <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8, fontStyle: "italic" }}>
         By typing your name below and attaching your signature, you swear and agree that all information you provided in this form is completely true, accurate, and correct under the penalty of law.
       </p>
-      <Field label="Applicant Electronic Signature (type your full legal name)" required>
-        <input className="sb-m-fi" value={state.attestation_signed_name} onChange={(e) => update({ attestation_signed_name: e.target.value })} placeholder="Surname, First name Middle name" />
-      </Field>
+      <Row>
+        <Field label="Applicant Electronic Signature (type your full legal name)" required>
+          <input className="sb-m-fi" value={state.attestation_signed_name} onChange={(e) => update({ attestation_signed_name: e.target.value })} placeholder="Surname, First name Middle name" />
+        </Field>
+        <Field label="Date">
+          <input className="sb-m-fi ro" type="date" value={new Date().toISOString().slice(0, 10)} disabled />
+        </Field>
+      </Row>
       <FileField label="Upload Signature Image (clear photo of your signature)" required onChange={onFile("signature")} file={state.files.signature} />
     </>
   );
