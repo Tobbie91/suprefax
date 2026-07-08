@@ -2,6 +2,7 @@ import { useState, ReactNode, ChangeEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 import { api } from "../../api/client";
+import SignaturePad from "../../components/SignaturePad";
 
 interface Agent {
   id: string;
@@ -177,6 +178,7 @@ interface WizardState {
   declaration_accepted: boolean;
   declaration_name: string;
   attestation_signed_name: string;
+  signature_data: string | null;
 
   // NOK (kept)
   nok_name: string;
@@ -261,13 +263,14 @@ const EMPTY: WizardState = {
   declaration_accepted: false,
   declaration_name: "",
   attestation_signed_name: "",
+  signature_data: null,
 
   nok_name: "",
   nok_phone: "",
   nok_address: "",
   nok_relationship: "",
 
-  files: { gov_id: null, bank_statement: null, proof_of_address: null, product_specific: null, admission_receipt: null, passport_photo: null, signature: null, sponsor_cac: null, applicant_cac: null },
+  files: { gov_id: null, bank_statement: null, proof_of_address: null, product_specific: null, admission_receipt: null, passport_photo: null, sponsor_cac: null, applicant_cac: null },
   additionalFiles: [],
 
   master_confirmed: false,
@@ -381,7 +384,7 @@ export default function ApplyWizard({ setActiveTab }: Props) {
         if (state.product === "Student POF" && !state.files.admission_receipt) {
           return "Upload the admission fee payment receipt.";
         }
-        if (!state.files.signature) return "Upload your signature image.";
+        if (!state.signature_data) return "Please draw or upload your signature.";
         return null;
       case 7:
         if (!state.master_confirmed) return "Confirm the final declaration to submit.";
@@ -509,7 +512,7 @@ export default function ApplyWizard({ setActiveTab }: Props) {
       const appId = app.id;
 
       const uploads: Promise<unknown>[] = [];
-      const docKeys = ["gov_id", "bank_statement", "proof_of_address", "product_specific", "admission_receipt", "passport_photo", "signature", "sponsor_cac", "applicant_cac"];
+      const docKeys = ["gov_id", "bank_statement", "proof_of_address", "product_specific", "admission_receipt", "passport_photo", "sponsor_cac", "applicant_cac"];
       for (const key of docKeys) {
         const f = state.files[key];
         if (!f) continue;
@@ -524,6 +527,20 @@ export default function ApplyWizard({ setActiveTab }: Props) {
         fd.append("doc_type", "additional");
         uploads.push(api.post(`/applications/${appId}/documents`, fd));
       }
+
+      if (state.signature_data) {
+        const [meta, b64] = state.signature_data.split(",");
+        const mime = meta.match(/data:([^;]+);/)?.[1] || "image/png";
+        const bin = atob(b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const blob = new Blob([bytes], { type: mime });
+        const fd = new FormData();
+        fd.append("file", blob, "signature.png");
+        fd.append("doc_type", "signature");
+        uploads.push(api.post(`/applications/${appId}/documents`, fd));
+      }
+
       await Promise.all(uploads);
 
       queryClient.invalidateQueries({ queryKey: ["borrower-applications"] });
@@ -1575,7 +1592,10 @@ function Step7DeclarationDocs({
           <input className="sb-m-fi ro" type="date" value={new Date().toISOString().slice(0, 10)} disabled />
         </Field>
       </Row>
-      <FileField label="Upload Signature Image (clear photo of your signature)" required onChange={onFile("signature")} file={state.files.signature} />
+      <div className="sb-m-fg">
+        <label className="sb-m-fl">Draw or Upload Signature <span style={{ color: "var(--red)" }}>*</span></label>
+        <SignaturePad value={state.signature_data} onChange={(v) => update({ signature_data: v })} />
+      </div>
     </>
   );
 }
