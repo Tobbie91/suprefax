@@ -105,7 +105,7 @@ const productSpecificDoc = (product: string): { label: string; required: boolean
 interface WizardState {
   // step 1
   product: string;
-  is_returning_borrower: boolean;
+  is_returning_borrower: boolean | null;
 
   // step 2 - varies by product
   full_name: string;
@@ -195,8 +195,8 @@ interface WizardState {
 }
 
 const EMPTY: WizardState = {
-  product: "Student POF",
-  is_returning_borrower: false,
+  product: "",
+  is_returning_borrower: null,
 
   full_name: "",
   phone: "",
@@ -310,12 +310,13 @@ export default function ApplyWizard({ setActiveTab }: Props) {
   const updateWitness = (patch: Partial<Witness>) => setState((s) => ({ ...s, sponsor_witness: { ...s.sponsor_witness, ...patch } }));
 
   // Skip pages 2 (personal) and 3 (address) when returning borrower
-  const skipsPersonalAddress = state.is_returning_borrower;
+  const skipsPersonalAddress = state.is_returning_borrower === true;
 
   const validateStep = (): string | null => {
     switch (step) {
       case 0:
         if (!state.product) return "Pick a loan category.";
+        if (state.is_returning_borrower === null) return "Please tell us whether you've applied before.";
         return null;
       case 1:
         if (state.product === "LPO financing") {
@@ -425,7 +426,7 @@ export default function ApplyWizard({ setActiveTab }: Props) {
 
   const buildPayload = () => ({
     product: state.product,
-    is_returning_borrower: state.is_returning_borrower,
+    is_returning_borrower: !!state.is_returning_borrower,
     amount: Number(state.amount),
     duration_days: state.duration_days,
     purpose: state.purpose.trim(),
@@ -684,7 +685,7 @@ function OptionCard({ selected, onClick, children }: { selected: boolean; onClic
 function Step1LoanType({ state, update }: { state: WizardState; update: Updater }) {
   return (
     <>
-      <h4 style={{ margin: "0 0 12px 0" }}>Section 1: Select your loan type</h4>
+      <h4 style={{ margin: "0 0 12px 0" }}>Select your loan type</h4>
       {PRODUCTS.map((p) => (
         <OptionCard key={p.key} selected={state.product === p.key} onClick={() => update({ product: p.key })}>
           <div style={{ fontWeight: 700 }}>{p.key}</div>
@@ -692,14 +693,18 @@ function Step1LoanType({ state, update }: { state: WizardState; update: Updater 
         </OptionCard>
       ))}
 
-      <h4 style={{ margin: "24px 0 12px 0" }}>Section 1B: Have you applied before?</h4>
-      <OptionCard selected={state.is_returning_borrower} onClick={() => update({ is_returning_borrower: true })}>
-        <div style={{ fontWeight: 700 }}>YES — I am a returning borrower</div>
-        <div style={{ fontSize: 12, color: "var(--muted)" }}>Skip re-entering personal and address details.</div>
-      </OptionCard>
-      <OptionCard selected={!state.is_returning_borrower} onClick={() => update({ is_returning_borrower: false })}>
-        <div style={{ fontWeight: 700 }}>NO — I am a new borrower</div>
-      </OptionCard>
+      {state.product && (
+        <>
+          <h4 style={{ margin: "24px 0 12px 0" }}>Have you applied before?</h4>
+          <OptionCard selected={state.is_returning_borrower === true} onClick={() => update({ is_returning_borrower: true })}>
+            <div style={{ fontWeight: 700 }}>YES — I am a returning borrower</div>
+            <div style={{ fontSize: 12, color: "var(--muted)" }}>Skip re-entering personal and address details.</div>
+          </OptionCard>
+          <OptionCard selected={state.is_returning_borrower === false} onClick={() => update({ is_returning_borrower: false })}>
+            <div style={{ fontWeight: 700 }}>NO — I am a new borrower</div>
+          </OptionCard>
+        </>
+      )}
     </>
   );
 }
@@ -712,7 +717,7 @@ function Step2PersonalInfo({ state, update, onFile }: { state: WizardState; upda
   if (state.product === "LPO financing") {
     return (
       <>
-        <h4>Section 2: Business & LPO Information</h4>
+        <h4>Business & LPO Information</h4>
         <Row>
           <Field label="Registered Business/Company Name" required>
             <input className="sb-m-fi" value={state.company_name} onChange={(e) => update({ company_name: e.target.value })} placeholder="As registered on CAC" />
@@ -731,15 +736,7 @@ function Step2PersonalInfo({ state, update, onFile }: { state: WizardState; upda
         </Row>
         <Row>
           <Field label="Company Phone Number" required>
-            <InputWithAction
-              value={state.company_phone}
-              onChange={(v) => update({ company_phone: v.replace(/\D/g, "") })}
-              placeholder="08012345678"
-              maxLength={11}
-              label="Verify Phone"
-              canAction={/^0\d{10}$/.test(state.company_phone)}
-              onAction={() => alert("Verification SMS sent.")}
-            />
+            <input className="sb-m-fi" value={state.company_phone} onChange={(e) => update({ company_phone: e.target.value.replace(/\D/g, "") })} placeholder="08012345678" maxLength={11} />
           </Field>
           <Field label="Supplier Code" required>
             <input className="sb-m-fi" value={state.supplier_code} onChange={(e) => update({ supplier_code: e.target.value })} placeholder="Enter your supplier code" />
@@ -755,7 +752,7 @@ function Step2PersonalInfo({ state, update, onFile }: { state: WizardState; upda
   if (state.product === "Travel POF") {
     return (
       <>
-        <h4>Section 2: Traveler Personal Information</h4>
+        <h4>Traveler Personal Information</h4>
         <Row>
           <Field label="Full Legal Name" required>
             <input className="sb-m-fi" value={state.full_name} onChange={(e) => update({ full_name: e.target.value })} placeholder="Surname, First name Middle name" />
@@ -769,15 +766,7 @@ function Step2PersonalInfo({ state, update, onFile }: { state: WizardState; upda
             <input className="sb-m-fi" value={state.visa_reference_no} onChange={(e) => update({ visa_reference_no: e.target.value })} placeholder="Enter your visa reference" />
           </Field>
           <Field label="Phone Number" required>
-            <InputWithAction
-              value={state.phone}
-              onChange={(v) => update({ phone: v.replace(/\D/g, "") })}
-              placeholder="08012345678"
-              maxLength={11}
-              label="Verify Phone"
-              canAction={/^0\d{10}$/.test(state.phone)}
-              onAction={() => alert("Verification SMS sent.")}
-            />
+            <input className="sb-m-fi" value={state.phone} onChange={(e) => update({ phone: e.target.value.replace(/\D/g, "") })} placeholder="08012345678" maxLength={11} />
           </Field>
         </Row>
         <Row>
@@ -805,7 +794,7 @@ function Step2PersonalInfo({ state, update, onFile }: { state: WizardState; upda
   // Student POF or Soft business loan → shared primary form
   return (
     <>
-      <h4>Section 2: Borrower Personal Information</h4>
+      <h4>Personal Information</h4>
       <Row>
         <Field label="Full Legal Name" required>
           <input className="sb-m-fi" value={state.full_name} onChange={(e) => update({ full_name: e.target.value })} placeholder="Surname, First name Middle name" />
@@ -816,15 +805,7 @@ function Step2PersonalInfo({ state, update, onFile }: { state: WizardState; upda
       </Row>
       <Row>
         <Field label="Phone Number" required>
-          <InputWithAction
-            value={state.phone}
-            onChange={(v) => update({ phone: v.replace(/\D/g, "") })}
-            placeholder="08012345678"
-            maxLength={11}
-            label="Verify Phone"
-            canAction={/^0\d{10}$/.test(state.phone)}
-            onAction={() => alert("Verification SMS sent.")}
-          />
+          <input className="sb-m-fi" value={state.phone} onChange={(e) => update({ phone: e.target.value.replace(/\D/g, "") })} placeholder="08012345678" maxLength={11} />
         </Field>
         <Field label="International Passport Number" required>
           <input className="sb-m-fi" value={state.int_passport_no} onChange={(e) => update({ int_passport_no: e.target.value })} placeholder="e.g. A01234567" />
@@ -858,7 +839,7 @@ function Step2PersonalInfo({ state, update, onFile }: { state: WizardState; upda
 function Step3AddressDetails({ state, update }: { state: WizardState; update: Updater }) {
   return (
     <>
-      <h4>Section 2A: Home / Office Address</h4>
+      <h4>Home / Office Address</h4>
       <Row3>
         <Field label="Country" required>
           <select className="sb-m-fi" value={state.addr_country} onChange={(e) => update({ addr_country: e.target.value })}>
@@ -897,7 +878,7 @@ function Step3AddressDetails({ state, update }: { state: WizardState; update: Up
 
       {(state.product === "Student POF" || state.product === "Soft business loan") && (
         <>
-          <h4 style={{ marginTop: 20 }}>Section 2B: School Details</h4>
+          <h4 style={{ marginTop: 20 }}>School Details</h4>
           <Row>
             <Field label="Name of School / Institution" required>
               <input className="sb-m-fi" value={state.school_name} onChange={(e) => update({ school_name: e.target.value })} placeholder="e.g. University of Toronto" />
@@ -924,7 +905,7 @@ function Step3AddressDetails({ state, update }: { state: WizardState; update: Up
 
       {state.product === "Travel POF" && (
         <>
-          <h4 style={{ marginTop: 20 }}>Section 2B: Travel Destination Details</h4>
+          <h4 style={{ marginTop: 20 }}>Travel Destination Details</h4>
           <Row3>
             <Field label="Destination Country" required>
               <select className="sb-m-fi" value={state.travel_destination_country} onChange={(e) => update({ travel_destination_country: e.target.value })}>
@@ -949,7 +930,7 @@ function Step3AddressDetails({ state, update }: { state: WizardState; update: Up
 
       {state.product === "LPO financing" && (
         <>
-          <h4 style={{ marginTop: 20 }}>Section 2B: Delivery & Logistics Details</h4>
+          <h4 style={{ marginTop: 20 }}>Delivery & Logistics Details</h4>
           <Row3>
             <Field label="Delivery Country" required>
               <select className="sb-m-fi" value={state.delivery_country} onChange={(e) => update({ delivery_country: e.target.value })}>
@@ -986,7 +967,7 @@ function Step4ApplicationType({ state, update, agents }: { state: WizardState; u
   const selected = agents.find((a) => a.id === state.agent_id);
   return (
     <>
-      <h4>Section 3: Application Type</h4>
+      <h4>Application Type</h4>
       <OptionCard selected={state.agent_route === "direct"} onClick={() => update({ agent_route: "direct", agent_id: "" })}>
         <div style={{ fontWeight: 700 }}>Direct Application</div>
         <div style={{ fontSize: 12, color: "var(--muted)" }}>I am applying on my own.</div>
@@ -998,7 +979,7 @@ function Step4ApplicationType({ state, update, agents }: { state: WizardState; u
 
       {state.agent_route === "agent_assisted" && (
         <div style={{ marginTop: 16 }}>
-          <h4>Section 3B: Agent Information</h4>
+          <h4>Agent Information</h4>
           <Field label="Select your agent" required>
             <select className="sb-m-fi" value={state.agent_id} onChange={(e) => update({ agent_id: e.target.value })}>
               <option value="">— Select agent —</option>
@@ -1061,7 +1042,7 @@ function Step5Sponsor({
 
   return (
     <>
-      <h4>Section 4: Sponsor Information</h4>
+      <h4>Sponsor Information</h4>
       <OptionCard selected={state.has_sponsor} onClick={() => update({ has_sponsor: true })}>
         <div style={{ fontWeight: 700 }}>YES — I have a sponsor</div>
         <div style={{ fontSize: 12, color: "var(--muted)" }}>Add sponsor details and (if a company) their directors.</div>
@@ -1082,7 +1063,7 @@ function Step5Sponsor({
 
           {state.sponsor_type === "personal" && (
             <>
-              <h4 style={{ marginTop: 20 }}>Section 4B: Personal Sponsor Details</h4>
+              <h4 style={{ marginTop: 20 }}>Personal Sponsor Details</h4>
               <Row>
                 <Field label="Full Legal Name" required>
                   <input className="sb-m-fi" value={s.full_name} onChange={(e) => updateSponsor({ full_name: e.target.value })} placeholder="Surname, First name Middle name" />
@@ -1096,15 +1077,7 @@ function Step5Sponsor({
                   <input className="sb-m-fi" value={s.passport_no} onChange={(e) => updateSponsor({ passport_no: e.target.value })} placeholder="e.g. A01234567" />
                 </Field>
                 <Field label="Sponsor's Phone Number" required>
-                  <InputWithAction
-                    value={s.phone}
-                    onChange={(v) => updateSponsor({ phone: v.replace(/\D/g, "") })}
-                    maxLength={11}
-                    placeholder="08012345678"
-                    label="Verify Phone"
-                    canAction={/^0\d{10}$/.test(s.phone)}
-                    onAction={() => alert("Sponsor phone verified.")}
-                  />
+                  <input className="sb-m-fi" value={s.phone} onChange={(e) => updateSponsor({ phone: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="08012345678" />
                 </Field>
               </Row>
               <Row>
@@ -1183,7 +1156,7 @@ function Step5Sponsor({
                 Send Affidavit to Sponsor
               </button>
 
-              <h4 style={{ marginTop: 20 }}>Section 4B (Part II): Sponsor's Witness Details</h4>
+              <h4 style={{ marginTop: 20 }}>Sponsor's Witness Details</h4>
               <Row>
                 <Field label="Witness Full Legal Name" required>
                   <input className="sb-m-fi" value={state.sponsor_witness.full_name} onChange={(e) => updateWitness({ full_name: e.target.value })} placeholder="Surname, First name Middle name" />
@@ -1221,7 +1194,7 @@ function Step5Sponsor({
 
           {state.sponsor_type === "corporate" && (
             <>
-              <h4 style={{ marginTop: 20 }}>Section 4C: Corporate Sponsor Details</h4>
+              <h4 style={{ marginTop: 20 }}>Corporate Sponsor Details</h4>
               <Field label="Are you the ONLY authorized signatory director for this company?">
                 <select className="sb-m-fi" value={s.is_sole_signatory ? "YES" : "NO"} onChange={(e) => updateSponsor({ is_sole_signatory: e.target.value === "YES" })}>
                   <option value="YES">YES</option>
@@ -1290,7 +1263,7 @@ function Step5Sponsor({
 
               {!s.is_sole_signatory && (
                 <>
-                  <h4 style={{ marginTop: 20 }}>Section 4D: Signatory Directors</h4>
+                  <h4 style={{ marginTop: 20 }}>Signatory Directors</h4>
                   <Field label="How many signatory directors are in this company?">
                     <select className="sb-m-fi" value={state.sponsor_directors.length} onChange={(e) => setDirCount(Number(e.target.value))}>
                       {Array.from({ length: 20 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n} Director(s)</option>)}
@@ -1323,15 +1296,7 @@ function DirectorForm({ index, director, onChange }: { index: number; director: 
       </Row>
       <Row>
         <Field label="Phone Number" required>
-          <InputWithAction
-            value={director.phone}
-            onChange={(v) => onChange({ phone: v.replace(/\D/g, "") })}
-            maxLength={11}
-            placeholder="08012345678"
-            label="Verify Phone"
-            canAction={/^0\d{10}$/.test(director.phone)}
-            onAction={() => alert("Director phone verified.")}
-          />
+          <input className="sb-m-fi" value={director.phone} onChange={(e) => onChange({ phone: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="08012345678" />
         </Field>
         <Field label="Email Address" required>
           <input className="sb-m-fi" type="email" value={director.email} onChange={(e) => onChange({ email: e.target.value })} placeholder="director@email.com" />
@@ -1394,7 +1359,7 @@ function Step6BankLoan({ state, update, onFile }: { state: WizardState; update: 
 
   return (
     <>
-      <h4>Section 5: Disbursement Bank Account Details</h4>
+      <h4>Disbursement Bank Account</h4>
       <Field label="Account Category">
         <select className="sb-m-fi" value={state.applicant_type} onChange={(e) => update({ applicant_type: e.target.value as "individual" | "corporate" })}>
           <option value="individual">Personal Bank Account</option>
@@ -1430,7 +1395,7 @@ function Step6BankLoan({ state, update, onFile }: { state: WizardState; update: 
 
       {state.applicant_type === "corporate" && (
         <>
-          <h4 style={{ marginTop: 20 }}>Section 5B: Applicant Company Details</h4>
+          <h4 style={{ marginTop: 20 }}>Company Details</h4>
           <Field label="Are you the ONLY authorized signatory director for this company?">
             <select className="sb-m-fi" value={state.applicant_is_sole_signatory ? "YES" : "NO"} onChange={(e) => update({ applicant_is_sole_signatory: e.target.value === "YES" })}>
               <option value="YES">YES</option>
@@ -1481,7 +1446,7 @@ function Step6BankLoan({ state, update, onFile }: { state: WizardState; update: 
 
           {!state.applicant_is_sole_signatory && (
             <>
-              <h4 style={{ marginTop: 20 }}>Section 5C: Company Signatory Directors</h4>
+              <h4 style={{ marginTop: 20 }}>Company Signatory Directors</h4>
               <Field label="How many signatory directors are in this company?">
                 <select className="sb-m-fi" value={state.applicant_directors.length} onChange={(e) => setDirCount(Number(e.target.value))}>
                   {Array.from({ length: 20 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n} Director(s)</option>)}
@@ -1495,7 +1460,7 @@ function Step6BankLoan({ state, update, onFile }: { state: WizardState; update: 
         </>
       )}
 
-      <h4 style={{ marginTop: 24 }}>Section 6: Loan Details</h4>
+      <h4 style={{ marginTop: 24 }}>Loan Details</h4>
       <Row>
         <Field label="Requested Loan Amount (₦)" required>
           <input
@@ -1540,12 +1505,23 @@ function Step7DeclarationDocs({
   const psd = productSpecificDoc(state.product);
   return (
     <>
-      <h4>Section 7: Statutory Declaration (Oaths Act, 1990)</h4>
+      <h4>Statutory Declaration (Oaths Act, 1990)</h4>
       <Field label="Full Legal Name of Declarant">
         <input className="sb-m-fi" value={state.declaration_name} onChange={(e) => update({ declaration_name: e.target.value })} placeholder="Surname, First name Middle name" />
       </Field>
-      <div style={{ background: "var(--bg)", padding: 14, borderRadius: 6, fontSize: 13, lineHeight: 1.6, marginBottom: 12, maxHeight: 180, overflowY: "auto" }}>
-        I solemnly and sincerely declare, in line with the <strong>Oaths Act, 1990</strong>, that: I am in good health; I have reached the legal age of maturity; I am of sound mind and fully capable of entering into a legal contract; I have not been convicted of fraud, financial crimes, or dishonesty in the last five (5) years; I am not bankrupt; I do not have any unpaid or outstanding loans with this platform; and I am signing this agreement freely and without any force or pressure from anyone.
+      <div style={{ background: "var(--bg)", padding: 14, borderRadius: 6, fontSize: 13, lineHeight: 1.6, marginBottom: 12 }}>
+        <p style={{ margin: "0 0 10px 0" }}>
+          I solemnly and sincerely declare, in line with the <strong>Oaths Act, 1990</strong>, that:
+        </p>
+        <ul style={{ margin: 0, paddingLeft: 22 }}>
+          <li>I am in good health.</li>
+          <li>I have reached the legal age of maturity.</li>
+          <li>I am of sound mind and fully capable of entering into a legal contract.</li>
+          <li>I have not been convicted of fraud, financial crimes, or dishonesty in the last five (5) years.</li>
+          <li>I am not bankrupt.</li>
+          <li>I do not have any unpaid or outstanding loans with this platform.</li>
+          <li>I am signing this agreement freely and without any force or pressure from anyone.</li>
+        </ul>
       </div>
       <Row>
         <Field label="Date of Declaration">
@@ -1559,7 +1535,7 @@ function Step7DeclarationDocs({
         </Field>
       </Row>
 
-      <h4 style={{ marginTop: 24 }}>Section 8: Required Upload Documents</h4>
+      <h4 style={{ marginTop: 24 }}>Required Upload Documents</h4>
       <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>Maximum file size: 8 MB. Accepted formats: PDF, JPG, PNG.</p>
 
       <FileField label="1. Valid Government ID (NIN slip or passport data page)" required onChange={onFile("gov_id")} file={state.files.gov_id} />
@@ -1580,7 +1556,7 @@ function Step7DeclarationDocs({
         )}
       </div>
 
-      <h4 style={{ marginTop: 24 }}>Section 9: Applicant Sign-Off Attestation</h4>
+      <h4 style={{ marginTop: 24 }}>Applicant Sign-Off Attestation</h4>
       <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8, fontStyle: "italic" }}>
         By typing your name below and attaching your signature, you swear and agree that all information you provided in this form is completely true, accurate, and correct under the penalty of law.
       </p>
@@ -1624,12 +1600,12 @@ function Step8Review({ state, update, agents }: { state: WizardState; update: Up
 
   return (
     <>
-      <h4>Section 10: Third-Party Notifications</h4>
+      <h4>Third-Party Notifications</h4>
       <div style={{ background: "var(--green-lt)", borderLeft: "4px solid var(--green)", padding: 14, fontSize: 12, marginBottom: 18 }}>
         <strong>Notice:</strong> Once you submit, our system will notify your listed sponsor, witnesses, and agent (if agent-assisted) to complete their part of the application.
       </div>
 
-      <h4>Section 11: Review Your Application</h4>
+      <h4>Review Your Application</h4>
       <SummaryRow k="Loan Category" v={state.product} />
       <SummaryRow k="Returning Borrower" v={state.is_returning_borrower ? "Yes" : "No"} />
       <SummaryRow k="Applicant Name" v={state.full_name || state.company_name || state.attestation_signed_name || "—"} />
