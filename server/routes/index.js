@@ -12,7 +12,7 @@ import { requestExtension, approveExtension, declineExtension } from "../control
 import { sign, getSignatures } from "../controllers/signature.js";
 import { getAllApplications, getExtensions, getAuditLogs, getAnalytics, controlNotifications, listAgents, listCustomers, createAgent, resetNonAdminUsers, manuallyVerifyKyc } from "../controllers/admin.js";
 import { getDocument, listApplicationDocuments, uploadApplicationDocument } from "../controllers/documents.js";
-import { initiateKyc, getKycStatus, handleProveWebhook } from "../controllers/kyc.js";
+import { initiateKyc, getKycStatus, handleProveWebhook, finalizeKyc } from "../controllers/kyc.js";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 
@@ -43,6 +43,7 @@ router.post("/applications/:id/documents", authenticate, authorize(["borrower"])
 // KYC (Mono Prove flow). Initiate is auth-gated; webhook is public.
 router.get("/kyc/status", authenticate, getKycStatus);
 router.post("/kyc/initiate", authenticate, initiateKyc);
+router.post("/kyc/finalize", authenticate, finalizeKyc);
 router.post("/webhooks/mono/prove", handleProveWebhook);
 
 // Agent (requires verified KYC)

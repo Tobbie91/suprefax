@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { db } from "../db/index.js";
-import { initiateProve } from "../services/kyc.js";
+import { initiateProve, getProveStatus } from "../services/kyc.js";
 
 const PHONE_RE = /^0\d{10}$/;
 
@@ -69,6 +69,58 @@ export const getKycStatus = async (req, res) => {
     [req.user.id]
   );
   res.json(result.rows[0] || { kyc_status: null });
+};
+
+export const finalizeKyc = async (req, res) => {
+  const userId = req.user.id;
+  const userRow = await db.query(
+    "SELECT kyc_provider_ref, kyc_status FROM users WHERE id=$1",
+    [userId]
+  );
+  const user = userRow.rows[0];
+  if (!user) return res.status(404).json({ message: "User not found" });
+  if (user.kyc_status === "verified") return res.json({ kyc_status: "verified" });
+  if (!user.kyc_provider_ref) return res.json({ kyc_status: user.kyc_status || "pending" });
+
+  const mono = await getProveStatus(user.kyc_provider_ref);
+  if (!mono.ok) {
+    return res.json({ kyc_status: user.kyc_status || "pending", provider_error: mono.data?.message || "Mono status check failed" });
+  }
+
+  const body = mono.data?.data || mono.data || {};
+  const providerStatus = String(body.status || body.session_status || "").toLowerCase();
+  const isSuccess = /success|verified|complete|approved/.test(providerStatus);
+  const isFailure = /fail|reject|cancel|declined/.test(providerStatus);
+
+  if (isSuccess) {
+    const identity = body.identity || body.customer || body;
+    const nin = pickField(identity, "nin", "nin_data.nin");
+    const bvn = pickField(identity, "bvn", "bvn_data.bvn");
+    const address = pickField(identity, "address", "residential_address", "house_address");
+    await db.query(
+      `UPDATE users
+         SET kyc_status='verified',
+             kyc_nin=COALESCE($1, kyc_nin),
+             kyc_bvn=COALESCE($2, kyc_bvn),
+             kyc_address=COALESCE($3, kyc_address),
+             kyc_verified_at=NOW(),
+             kyc_rejection_reason=NULL
+       WHERE id=$4`,
+      [nin, bvn, address, userId]
+    );
+    return res.json({ kyc_status: "verified" });
+  }
+
+  if (isFailure) {
+    const reason = pickField(body, "message", "reason") || providerStatus || "Verification failed";
+    await db.query(
+      "UPDATE users SET kyc_status='rejected', kyc_rejection_reason=$1 WHERE id=$2",
+      [reason, userId]
+    );
+    return res.json({ kyc_status: "rejected", kyc_rejection_reason: reason });
+  }
+
+  return res.json({ kyc_status: user.kyc_status || "pending", provider_status: providerStatus });
 };
 
 export const handleProveWebhook = async (req, res) => {

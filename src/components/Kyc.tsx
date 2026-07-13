@@ -54,13 +54,45 @@ export default function Kyc() {
     }
   };
 
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    if (params.get("status") === "mono-return") {
-      setPolling(true);
-      refreshStatus();
-      pollRef.current = window.setInterval(refreshStatus, 4000);
+  const finalizeStatus = async (): Promise<KycStatus | undefined> => {
+    try {
+      const { data } = await api.post<{ kyc_status: KycStatus; kyc_rejection_reason?: string }>("/kyc/finalize");
+      if (user && data.kyc_status) setUser({ ...user, kyc_status: data.kyc_status });
+      if (data.kyc_status === "verified") {
+        stopPolling();
+        navigate(successRoute);
+      } else if (data.kyc_status === "rejected") {
+        stopPolling();
+        setError(data.kyc_rejection_reason || "Verification was rejected. You can try again.");
+      }
+      return data.kyc_status;
+    } catch (err) {
+      console.warn("finalize failed", err);
+      return undefined;
     }
+  };
+
+  useEffect(() => {
+    if (!user || user.role === "admin" || user.kyc_status === "verified") return;
+
+    const params = new URLSearchParams(location.search);
+    const isMonoReturn = params.get("status") === "mono-return";
+
+    let cancelled = false;
+    (async () => {
+      const status = await finalizeStatus();
+      if (cancelled) return;
+      if (isMonoReturn && status !== "verified" && status !== "rejected") {
+        setPolling(true);
+        pollRef.current = window.setInterval(refreshStatus, 4000);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      stopPolling();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search]);
 
   const handleVerify = async () => {

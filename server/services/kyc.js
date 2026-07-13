@@ -17,6 +17,21 @@ const post = async (path, body) => {
   return { ok: res.ok && data?.status !== "failed", status: res.status, data };
 };
 
+const get = async (path) => {
+  if (!process.env.MONO_SEC_KEY) {
+    return { ok: false, status: 503, data: { message: "MONO_SEC_KEY not configured on the server" } };
+  }
+  const res = await fetch(`${BASE}${path}`, {
+    method: "GET",
+    headers: {
+      "mono-sec-key": process.env.MONO_SEC_KEY,
+      Accept: "application/json",
+    },
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok && data?.status !== "failed", status: res.status, data };
+};
+
 export const initiateProve = ({ customer, redirectUrl, reference, kycLevel = "tier_2", bankAccounts = true, meta = {} }) =>
   post("/v1/prove/initiate", {
     customer,
@@ -26,3 +41,6 @@ export const initiateProve = ({ customer, redirectUrl, reference, kycLevel = "ti
     bank_accounts: bankAccounts,
     meta,
   });
+
+export const getProveStatus = (reference) =>
+  get(`/v1/prove/status?reference=${encodeURIComponent(reference)}`);
