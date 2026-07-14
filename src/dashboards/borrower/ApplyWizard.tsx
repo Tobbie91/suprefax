@@ -561,7 +561,7 @@ export default function ApplyWizard({ setActiveTab }: Props) {
         <div className="sb-page-sub">Step {step + 1} of {STEP_TITLES.length} — {STEP_TITLES[step]}</div>
       </div>
 
-      <Stepper step={step} titles={STEP_TITLES} skipped={skipsPersonalAddress ? [1, 2] : []} />
+      <Stepper step={step} titles={STEP_TITLES} skipped={skipsPersonalAddress ? [1, 2] : []} onJump={(i) => { setError(null); setStep(i); }} />
 
       {error && <div className="sb-alert sb-al-red" style={{ marginBottom: 12 }}>{error}</div>}
 
@@ -590,23 +590,40 @@ export default function ApplyWizard({ setActiveTab }: Props) {
   );
 }
 
-function Stepper({ step, titles, skipped }: { step: number; titles: string[]; skipped: number[] }) {
+function Stepper({ step, titles, skipped, onJump }: { step: number; titles: string[]; skipped: number[]; onJump?: (i: number) => void }) {
   return (
-    <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
-      {titles.map((t, i) => (
-        <div
-          key={t}
-          title={t}
-          style={{
-            flex: 1,
-            height: 6,
-            borderRadius: 3,
-            background: skipped.includes(i) ? "var(--border)" : i <= step ? "var(--blue)" : "var(--border)",
-            opacity: skipped.includes(i) ? 0.4 : 1,
-            transition: "background .2s",
-          }}
-        />
-      ))}
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 18 }}>
+      {titles.map((t, i) => {
+        const isActive = i === step;
+        const isPast = i < step;
+        const isSkipped = skipped.includes(i);
+        return (
+          <button
+            key={t}
+            type="button"
+            onClick={() => onJump?.(i)}
+            title={`Jump to: ${t}`}
+            style={{
+              flex: 1,
+              minWidth: 90,
+              padding: "6px 8px",
+              fontSize: 11,
+              fontWeight: 600,
+              border: `1.5px solid ${isActive ? "var(--blue)" : isSkipped ? "var(--border)" : isPast ? "var(--blue)" : "var(--border)"}`,
+              background: isActive ? "var(--blue)" : isPast ? "var(--blue-lt)" : "var(--white)",
+              color: isActive ? "var(--white)" : isPast ? "var(--blue)" : "var(--muted)",
+              borderRadius: 6,
+              cursor: "pointer",
+              opacity: isSkipped ? 0.5 : 1,
+              transition: "background .2s",
+              whiteSpace: "nowrap",
+              textAlign: "center",
+            }}
+          >
+            {i + 1}. {t}
+          </button>
+        );
+      })}
     </div>
   );
 }
