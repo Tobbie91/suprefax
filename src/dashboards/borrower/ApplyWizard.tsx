@@ -280,13 +280,13 @@ const fmtMoney = (n: number | string): string => `₦${Number(n || 0).toLocaleSt
 
 const STEP_TITLES = [
   "Loan Type",
-  "Personal Info",
-  "Address & Details",
-  "Application Type",
-  "Sponsor Info",
-  "Bank & Loan",
-  "Declaration & Docs",
-  "Review & Submit",
+  "Personal",
+  "Address",
+  "App Type",
+  "Sponsor",
+  "Bank",
+  "Declaration",
+  "Review",
 ];
 
 interface Props {
@@ -326,14 +326,9 @@ export default function ApplyWizard({ setActiveTab }: Props) {
         } else if (state.product === "Travel POF") {
           if (!state.full_name.trim()) return "Full name is required.";
           if (!state.visa_reference_no.trim()) return "Visa application reference is required.";
-          if (!/^\d{11}$/.test(state.nin)) return "NIN must be 11 digits.";
-          if (!/^\d{11}$/.test(state.bvn)) return "BVN must be 11 digits.";
         } else {
           if (!state.full_name.trim()) return "Full name is required.";
-          if (!/^0\d{10}$/.test(state.phone)) return "Phone must be 11 digits starting with 0.";
           if (!state.int_passport_no.trim()) return "International passport number is required.";
-          if (!/^\d{11}$/.test(state.nin)) return "NIN must be 11 digits.";
-          if (!/^\d{11}$/.test(state.bvn)) return "BVN must be 11 digits.";
         }
         return null;
       case 2:
@@ -604,12 +599,10 @@ function Stepper({ step, titles, skipped, onJump }: { step: number; titles: stri
             onClick={() => onJump?.(i)}
             title={`Jump to: ${t}`}
             style={{
-              flex: 1,
-              minWidth: 90,
-              padding: "6px 8px",
+              padding: "6px 10px",
               fontSize: 11,
               fontWeight: 600,
-              border: `1.5px solid ${isActive ? "var(--blue)" : isSkipped ? "var(--border)" : isPast ? "var(--blue)" : "var(--border)"}`,
+              border: `1.5px solid ${isActive ? "var(--blue)" : "var(--border)"}`,
               background: isActive ? "var(--blue)" : isPast ? "var(--blue-lt)" : "var(--white)",
               color: isActive ? "var(--white)" : isPast ? "var(--blue)" : "var(--muted)",
               borderRadius: 6,
@@ -617,7 +610,6 @@ function Stepper({ step, titles, skipped, onJump }: { step: number; titles: stri
               opacity: isSkipped ? 0.5 : 1,
               transition: "background .2s",
               whiteSpace: "nowrap",
-              textAlign: "center",
             }}
           >
             {i + 1}. {t}
@@ -782,21 +774,13 @@ function Step2PersonalInfo({ state, update, onFile }: { state: WizardState; upda
           <Field label="Visa Application Reference Number" required>
             <input className="sb-m-fi" value={state.visa_reference_no} onChange={(e) => update({ visa_reference_no: e.target.value })} placeholder="Enter your visa reference" />
           </Field>
-          <Field label="Phone Number" required>
-            <input className="sb-m-fi" value={state.phone} onChange={(e) => update({ phone: e.target.value.replace(/\D/g, "") })} placeholder="08012345678" maxLength={11} />
-          </Field>
-        </Row>
-        <Row>
           <Field label="International Passport Number" required>
             <input className="sb-m-fi" value={state.int_passport_no} onChange={(e) => update({ int_passport_no: e.target.value })} placeholder="e.g. A01234567" />
           </Field>
-          <Field label="NIN" required>
-            <input className="sb-m-fi" value={state.nin} onChange={(e) => update({ nin: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="11 digits" />
-          </Field>
         </Row>
-        <Field label="BVN" required>
-          <input className="sb-m-fi" value={state.bvn} onChange={(e) => update({ bvn: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="11 digits" />
-        </Field>
+        <div style={{ background: "var(--blue-lt)", padding: 10, borderRadius: 6, fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>
+          Your NIN, BVN and phone number are pulled from your verified Mono identity — no need to re-enter them.
+        </div>
         <Field label="Have you received your visa approval letter?">
           <select className="sb-m-fi" value={state.travel_visa_received ? "YES" : "NO"} onChange={(e) => update({ travel_visa_received: e.target.value === "YES" })}>
             <option value="YES">YES</option>
@@ -820,22 +804,12 @@ function Step2PersonalInfo({ state, update, onFile }: { state: WizardState; upda
           <input className="sb-m-fi ro" placeholder="Will be generated automatically" disabled />
         </Field>
       </Row>
-      <Row>
-        <Field label="Phone Number" required>
-          <input className="sb-m-fi" value={state.phone} onChange={(e) => update({ phone: e.target.value.replace(/\D/g, "") })} placeholder="08012345678" maxLength={11} />
-        </Field>
-        <Field label="International Passport Number" required>
-          <input className="sb-m-fi" value={state.int_passport_no} onChange={(e) => update({ int_passport_no: e.target.value })} placeholder="e.g. A01234567" />
-        </Field>
-      </Row>
-      <Row>
-        <Field label="NIN" required>
-          <input className="sb-m-fi" value={state.nin} onChange={(e) => update({ nin: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="11 digits" />
-        </Field>
-        <Field label="BVN" required>
-          <input className="sb-m-fi" value={state.bvn} onChange={(e) => update({ bvn: e.target.value.replace(/\D/g, "") })} maxLength={11} placeholder="11 digits" />
-        </Field>
-      </Row>
+      <Field label="International Passport Number" required>
+        <input className="sb-m-fi" value={state.int_passport_no} onChange={(e) => update({ int_passport_no: e.target.value })} placeholder="e.g. A01234567" />
+      </Field>
+      <div style={{ background: "var(--blue-lt)", padding: 10, borderRadius: 6, fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>
+        Your NIN, BVN and phone number are pulled from your verified Mono identity — no need to re-enter them.
+      </div>
       {state.product === "Student POF" && (
         <Field label="Have you received your school admission letter?">
           <select className="sb-m-fi" value={state.student_admission_received ? "YES" : "NO"} onChange={(e) => update({ student_admission_received: e.target.value === "YES" })}>

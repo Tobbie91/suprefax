@@ -42,5 +42,17 @@ export const initiateProve = ({ customer, redirectUrl, reference, kycLevel = "ti
     meta,
   });
 
-export const getProveStatus = (reference) =>
-  get(`/v1/prove/status?reference=${encodeURIComponent(reference)}`);
+export const getProveStatus = async (reference) => {
+  const paths = [
+    `/v1/prove/verifications/${encodeURIComponent(reference)}`,
+    `/v1/prove/status?reference=${encodeURIComponent(reference)}`,
+    `/v1/prove/${encodeURIComponent(reference)}/status`,
+  ];
+  let lastResult;
+  for (const p of paths) {
+    lastResult = await get(p);
+    if (lastResult.ok) return lastResult;
+    if (lastResult.status !== 404) return lastResult;
+  }
+  return lastResult;
+};

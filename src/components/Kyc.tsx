@@ -216,6 +216,16 @@ export default function Kyc() {
             {loading ? "Starting verification…" : polling ? "Verification in progress…" : "Verify with my bank →"}
           </button>
 
+          <button
+            type="button"
+            className="sx-submit-btn"
+            style={{ background: "transparent", color: accent, border: `1px solid ${accent}`, marginTop: 8 }}
+            onClick={finalizeStatus}
+            disabled={loading}
+          >
+            I've completed verification — check my status
+          </button>
+
           <div className="sx-si-footer" style={{ marginTop: 20 }}>
             Powered by Mono · Bank-grade encryption
             <br />
