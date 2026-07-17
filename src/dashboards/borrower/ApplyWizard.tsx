@@ -644,7 +644,7 @@ export default function ApplyWizard({ setActiveTab, resumeDraftId }: Props) {
         {step === 4 && <Step5Sponsor state={state} update={update} updateSponsor={updateSponsor} updateWitness={updateWitness} onFile={handleFile} />}
         {step === 5 && <Step6BankLoan state={state} update={update} onFile={handleFile} baselines={baselines} agents={agents} />}
         {step === 6 && <Step7DeclarationDocs state={state} update={update} onFile={handleFile} onAdditional={handleAdditional} />}
-        {step === 7 && <Step8Review state={state} update={update} agents={agents} />}
+        {step === 7 && <Step8Review state={state} update={update} agents={agents} baselines={baselines} />}
 
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24 }}>
           <button className="sb-btn" onClick={back} disabled={step === 0 || submitting}>← Back</button>
@@ -1795,15 +1795,25 @@ function FileField({ label, required, file, onChange, validate, accept }: {
 // STEP 8 — Review & Submit
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Step8Review({ state, update, agents }: { state: WizardState; update: Updater; agents: Agent[] }) {
+function Step8Review({ state, update, agents, baselines }: { state: WizardState; update: Updater; agents: Agent[]; baselines: Baseline[] }) {
   const primaryAgent = agents.find((a) => a.id === state.agent_ids[0]);
   const additionalAgents = state.agent_ids
     .slice(1, state.agent_count)
     .map((id) => agents.find((a) => a.id === id))
-    .filter(Boolean);
+    .filter((a): a is Agent => !!a);
   const applicationTypeLabel = state.agent_route === "agent_assisted"
     ? `Agent-Assisted — Primary: ${primaryAgent?.full_name || primaryAgent?.email || "—"}${additionalAgents.length > 0 ? ` · +${additionalAgents.length} referral${additionalAgents.length > 1 ? "s" : ""}` : ""}`
     : "Direct";
+
+  const baseline = baselines.find((b) => b.product_key === state.product && b.duration_days === state.duration_days);
+  const baselineRate = baseline ? Number(baseline.baseline_monthly_rate_pct) : null;
+  const effectiveRate = state.agent_route === "agent_assisted" && primaryAgent && baselineRate != null
+    ? baselineRate + Number(primaryAgent.agent_rate_offset_pct || 0)
+    : baselineRate;
+  const rateLabel = effectiveRate != null ? `${effectiveRate.toFixed(2)}% per month` : "—";
+  const loanPreview = state.amount && effectiveRate != null
+    ? computeLoan({ amount: Number(state.amount), monthlyRatePct: effectiveRate, durationDays: state.duration_days })
+    : null;
 
   return (
     <>
@@ -1818,7 +1828,13 @@ function Step8Review({ state, update, agents }: { state: WizardState; update: Up
       <SummaryRow k="Purpose" v={state.purpose} />
       <SummaryRow k="Amount Requested" v={fmtMoney(state.amount)} />
       <SummaryRow k="Duration" v={`${state.duration_days} days`} />
-      <SummaryRow k="Interest Rate" v="Will be calculated based on your loan type and duration" />
+      <SummaryRow k="Interest Rate" v={rateLabel} />
+      {loanPreview && (
+        <>
+          <SummaryRow k="Total Repayable" v={fmtMoney(loanPreview.total)} />
+          <SummaryRow k="Repayment Window" v={formatDateRange(loanPreview.startDate, loanPreview.dueDate)} />
+        </>
+      )}
       <SummaryRow k="Application Type" v={applicationTypeLabel} />
       <SummaryRow k="Applicant Type" v={state.applicant_type === "individual" ? "Individual" : "Corporate"} />
       {state.applicant_type === "individual" && (
