@@ -7,6 +7,12 @@ const ALLOWED_DOC_TYPES = new Set([
   "proof_of_address",
   "product_specific",
   "additional",
+  "admission_receipt",
+  "deposit_receipt",
+  "passport_photo",
+  "sponsor_cac",
+  "applicant_cac",
+  "signature",
 ]);
 
 export const getDocument = async (req, res) => {
@@ -59,6 +65,21 @@ export const listApplicationDocuments = async (req, res) => {
     [req.params.id]
   );
   res.json(result.rows);
+};
+
+export const deleteApplicationDocument = async (req, res) => {
+  const { id, docId } = req.params;
+
+  const owner = await db.query(
+    `SELECT ad.id FROM application_documents ad
+     JOIN applications a ON a.id = ad.application_id
+     WHERE ad.id=$1 AND ad.application_id=$2 AND a.borrower_id=$3`,
+    [docId, id, req.user.id]
+  );
+  if (owner.rows.length === 0) return res.status(404).json({ message: "Document not found." });
+
+  await db.query("DELETE FROM application_documents WHERE id=$1", [docId]);
+  res.json({ deleted: docId });
 };
 
 export const uploadApplicationDocument = async (req, res) => {

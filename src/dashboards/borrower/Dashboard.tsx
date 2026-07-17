@@ -94,6 +94,15 @@ interface BorrowerApplication extends Application {
   quoted_at?: string;
 }
 
+interface BorrowerDraft {
+  id: string;
+  product?: string | null;
+  amount?: string | number | null;
+  updated_at?: string;
+  created_at?: string;
+  documents?: Array<{ id: string; doc_type: string; cloudinary_url: string }>;
+}
+
 type ChatHistory = Record<string, ChatMessage[]>;
 
 export default function BorrowerDashboard() {
@@ -128,6 +137,12 @@ export default function BorrowerDashboard() {
     queryKey: ["borrower-applications"],
     queryFn: () => api.get("/borrower/applications").then((r) => r.data),
   });
+  const { data: drafts = [] } = useQuery<BorrowerDraft[]>({
+    queryKey: ["borrower-drafts"],
+    queryFn: () => api.get("/borrower/drafts").then((r) => r.data),
+  });
+  const [resumeDraftId, setResumeDraftId] = useState<string | null>(null);
+  const primaryDraft = drafts[0];
   const { data: repayments = [] } = useQuery<Repayment[]>({
     queryKey: ["borrower-repayments"],
     queryFn: () => api.get("/borrower/repayments").then((r) => r.data),
@@ -248,11 +263,27 @@ export default function BorrowerDashboard() {
               setActiveTab={setActiveTab}
             />
           )}
-          {activeTab === "apply" && <ApplyWizard setActiveTab={(t) => setActiveTab(t as TabKey)} />}
+          {activeTab === "apply" && (
+            <ApplyWizard
+              setActiveTab={(t) => setActiveTab(t as TabKey)}
+              resumeDraftId={resumeDraftId}
+              key={resumeDraftId || "new"}
+            />
+          )}
           {activeTab === "status" && (
             <StatusPage
               app={primaryApp}
               extensions={extensionsList}
+              drafts={drafts}
+              onResumeDraft={(id) => { setResumeDraftId(id); setActiveTab("apply"); }}
+              onDiscardDraft={async (id) => {
+                try {
+                  await api.delete(`/borrower/drafts/${id}`);
+                  queryClient.invalidateQueries({ queryKey: ["borrower-drafts"] });
+                } catch (err) {
+                  console.warn("draft delete failed", err);
+                }
+              }}
               onExtensionRequest={() => setShowExtModal(true)}
             />
           )}
@@ -492,10 +523,13 @@ function ApplyPage({ queryClient, setActiveTab }: ApplyPageProps) {
 interface StatusPageProps {
   app: BorrowerApplication | undefined;
   extensions: Extension[];
+  drafts: BorrowerDraft[];
+  onResumeDraft: (id: string) => void;
+  onDiscardDraft: (id: string) => void;
   onExtensionRequest: () => void;
 }
 
-function StatusPage({ app, extensions, onExtensionRequest }: StatusPageProps) {
+function StatusPage({ app, extensions, drafts, onResumeDraft, onDiscardDraft, onExtensionRequest }: StatusPageProps) {
   const queryClient = useQueryClient();
   const { data: signatures = [] } = useQuery<Signature[]>({
     queryKey: ["signatures", app?.id],
@@ -518,7 +552,8 @@ function StatusPage({ app, extensions, onExtensionRequest }: StatusPageProps) {
         <div className="sb-page-hdr">
           <div className="sb-page-title">My application</div>
         </div>
-        <div className="sb-card sb-empty">No application yet.</div>
+        <DraftsBlock drafts={drafts} onResume={onResumeDraft} onDiscard={onDiscardDraft} />
+        {drafts.length === 0 && <div className="sb-card sb-empty">No application yet.</div>}
       </div>
     );
   }
@@ -544,6 +579,8 @@ function StatusPage({ app, extensions, onExtensionRequest }: StatusPageProps) {
         <div className="sb-page-title">My application</div>
         <div className="sb-page-sub">{app.id.slice(0, 8)} · {app.product} · {fmtMoney(app.amount)}</div>
       </div>
+
+      <DraftsBlock drafts={drafts} onResume={onResumeDraft} onDiscard={onDiscardDraft} />
 
       {app.status === "awaiting_quote" && (
         <div className="sb-alert sb-al-blue">
@@ -663,6 +700,44 @@ function StatusPage({ app, extensions, onExtensionRequest }: StatusPageProps) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function DraftsBlock({ drafts, onResume, onDiscard }: { drafts: BorrowerDraft[]; onResume: (id: string) => void; onDiscard: (id: string) => void }) {
+  if (drafts.length === 0) return null;
+  return (
+    <div style={{ marginBottom: 20 }}>
+      {drafts.map((d) => {
+        const label = d.product ? `${d.product}${d.amount ? ` · ${fmtMoney(d.amount)}` : ""}` : "Untitled application";
+        const savedAt = d.updated_at || d.created_at;
+        return (
+          <div
+            key={d.id}
+            className="sb-card"
+            style={{ borderLeft: "4px solid var(--amber)", marginBottom: 12, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}
+          >
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, background: "var(--amber-lt)", color: "var(--amber)", padding: "2px 8px", borderRadius: 10 }}>
+                  DRAFT
+                </span>
+                <span style={{ fontWeight: 600 }}>{label}</span>
+              </div>
+              <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                {savedAt ? `Last edited ${new Date(savedAt).toLocaleString()}` : "In progress"}
+                {d.documents && d.documents.length > 0 && ` · ${d.documents.length} file${d.documents.length === 1 ? "" : "s"} uploaded`}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="sb-btn sb-btn-primary sb-btn-sm" onClick={() => onResume(d.id)}>Resume →</button>
+              <button className="sb-btn sb-btn-sm" onClick={() => { if (confirm("Discard this draft? This cannot be undone.")) onDiscard(d.id); }}>
+                Discard
+              </button>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

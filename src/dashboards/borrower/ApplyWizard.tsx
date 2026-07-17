@@ -1,4 +1,4 @@
-import { useState, ReactNode, ChangeEvent } from "react";
+import { useState, useEffect, useRef, ReactNode, ChangeEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 import { api } from "../../api/client";
@@ -291,6 +291,56 @@ const EMPTY: WizardState = {
 
 const fmtMoney = (n: number | string): string => `₦${Number(n || 0).toLocaleString()}`;
 
+const DRAFT_FIELDS: (keyof WizardState)[] = [
+  "product", "amount", "duration_days", "purpose",
+  "int_passport_no",
+  "bank_name", "bank_account_number", "bank_account_name",
+  "nok_name", "nok_phone", "nok_address", "nok_relationship",
+  "applicant_type", "agent_route", "has_sponsor",
+  "visa_reference_no", "company_name", "cac_number", "supplier_code", "po_number", "po_expiry",
+  "student_id", "course", "school_name", "school_address",
+  "destination_country", "destination_state", "travelers_count", "accommodation_type", "accommodation_address",
+  "delivery_country", "delivery_state", "delivery_address", "shipping_method",
+  "addr_country", "addr_state", "addr_lga", "addr_house_number", "addr_street_name", "addr_city", "addr_landmark", "addr_postal_code",
+  "applicant_company_name", "applicant_cac_number",
+  "attestation_signed_name",
+];
+
+function buildDraftPatch(state: WizardState): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  for (const k of DRAFT_FIELDS) {
+    const v = state[k];
+    if (v === undefined) continue;
+    patch[k] = v;
+  }
+  patch.agent_id = state.agent_route === "agent_assisted" ? (state.agent_ids[0] || null) : null;
+  patch.additional_agent_ids = state.agent_route === "agent_assisted"
+    ? state.agent_ids.slice(1, state.agent_count).filter(Boolean)
+    : [];
+  return patch;
+}
+
+function hydrateStateFromDraft(prev: WizardState, draft: Record<string, unknown>): WizardState {
+  const merged: WizardState = { ...prev };
+  for (const k of DRAFT_FIELDS) {
+    const v = draft[k];
+    if (v == null) continue;
+    // Numeric coercion for a couple of fields
+    if (k === "amount" || k === "duration_days" || k === "travelers_count") {
+      (merged as unknown as Record<string, unknown>)[k] = String(v);
+      if (k === "duration_days") merged.duration_days = Number(v);
+    } else {
+      (merged as unknown as Record<string, unknown>)[k] = v;
+    }
+  }
+  if (typeof draft.agent_id === "string" && draft.agent_id) {
+    const additional = Array.isArray(draft.additional_agent_ids) ? draft.additional_agent_ids as string[] : [];
+    merged.agent_ids = [draft.agent_id, ...additional];
+    merged.agent_count = merged.agent_ids.length;
+  }
+  return merged;
+}
+
 const STEP_TITLES = [
   "Loan Type",
   "Personal",
@@ -304,13 +354,18 @@ const STEP_TITLES = [
 
 interface Props {
   setActiveTab: (t: string) => void;
+  resumeDraftId?: string | null;
 }
 
-export default function ApplyWizard({ setActiveTab }: Props) {
+export default function ApplyWizard({ setActiveTab, resumeDraftId }: Props) {
   const [step, setStep] = useState(0);
   const [state, setState] = useState<WizardState>(EMPTY);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const saveTimer = useRef<number | null>(null);
   const queryClient = useQueryClient();
 
   const { data: agents = [] } = useQuery<Agent[]>({
@@ -327,6 +382,55 @@ export default function ApplyWizard({ setActiveTab }: Props) {
   const update = (patch: Partial<WizardState>) => setState((s) => ({ ...s, ...patch }));
   const updateSponsor = (patch: Partial<Sponsor>) => setState((s) => ({ ...s, sponsor: { ...s.sponsor, ...patch } }));
   const updateWitness = (patch: Partial<Witness>) => setState((s) => ({ ...s, sponsor_witness: { ...s.sponsor_witness, ...patch } }));
+
+  // On mount: hydrate from a resume id or create a fresh draft
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (resumeDraftId) {
+          const { data: drafts } = await api.get("/borrower/drafts");
+          const found = Array.isArray(drafts) ? drafts.find((d: { id: string }) => d.id === resumeDraftId) : null;
+          if (found) {
+            if (cancelled) return;
+            setDraftId(found.id);
+            setState((prev) => hydrateStateFromDraft(prev, found));
+            setHydrated(true);
+            return;
+          }
+        }
+        const { data: created } = await api.post("/borrower/drafts");
+        if (cancelled) return;
+        setDraftId(created.id);
+        setHydrated(true);
+      } catch (err) {
+        console.warn("draft init failed", err);
+        if (!cancelled) setHydrated(true);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumeDraftId]);
+
+  // Debounced save on state change
+  useEffect(() => {
+    if (!hydrated || !draftId) return;
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(async () => {
+      setSavingDraft(true);
+      try {
+        await api.put(`/borrower/drafts/${draftId}`, buildDraftPatch(state));
+      } catch (err) {
+        console.warn("draft save failed", err);
+      } finally {
+        setSavingDraft(false);
+      }
+    }, 2000);
+    return () => {
+      if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, draftId, hydrated]);
 
   const validateStep = (): string | null => {
     switch (step) {
@@ -447,94 +551,25 @@ export default function ApplyWizard({ setActiveTab }: Props) {
     return base + Number(primary.agent_rate_offset_pct || 0);
   };
 
-  const buildPayload = () => ({
-    product: state.product,
-    amount: Number(state.amount),
-    duration_days: state.duration_days,
-    purpose: state.purpose.trim(),
-    interest_rate_monthly_pct: computeEffectiveRate(),
-
-    int_passport_no: state.int_passport_no.trim() || null,
-    borrower_address: `${state.addr_house_number} ${state.addr_street_name}, ${state.addr_city}, ${state.addr_state}`.trim() || null,
-
-    // top-level personal fields duplicated for legacy
-    visa_reference_no: state.visa_reference_no || null,
-    company_name: state.company_name || null,
-    cac_number: state.cac_number || null,
-    supplier_code: state.supplier_code || null,
-    po_number: state.po_number || null,
-    po_expiry: state.po_expiry || null,
-
-    // address
-    addr_country: state.addr_country,
-    addr_state: state.addr_state,
-    addr_lga: state.addr_lga,
-    addr_house_number: state.addr_house_number,
-    addr_street_name: state.addr_street_name,
-    addr_city: state.addr_city,
-    addr_landmark: state.addr_landmark || null,
-    addr_postal_code: state.addr_postal_code || null,
-
-    // student sub
-    student_id: state.student_id || null,
-    course: state.course || null,
-    school_name: state.school_name || null,
-    school_address: state.school_address || null,
-    destination_country: state.destination_country || null,
-
-    // travel sub
-    destination_state: state.destination_state || null,
-    travelers_count: state.travelers_count || null,
-    accommodation_type: state.accommodation_type || null,
-    accommodation_address: state.accommodation_address || null,
-
-    // lpo sub
-    delivery_country: state.delivery_country || null,
-    delivery_state: state.delivery_state || null,
-    delivery_address: state.delivery_address || null,
-    shipping_method: state.shipping_method || null,
-
-    // application type
-    agent_route: state.agent_route,
-    agent_id: state.agent_route === "agent_assisted" ? state.agent_ids[0] || null : null,
-    additional_agent_ids: state.agent_route === "agent_assisted" ? state.agent_ids.slice(1, state.agent_count).filter(Boolean) : [],
-
-    // sponsor
-    has_sponsor: state.has_sponsor,
-    sponsor: state.has_sponsor ? {
-      sponsor_type: state.sponsor_type,
-      ...state.sponsor,
-      directors: state.sponsor_type === "corporate" && !state.sponsor.is_sole_signatory ? state.sponsor_directors : [],
-      witness: state.sponsor_witness.full_name.trim() ? state.sponsor_witness : null,
-    } : null,
-
-    // applicant
-    applicant_type: state.applicant_type,
-    bank_name: state.applicant_type === "individual" ? state.bank_name : null,
-    bank_account_number: state.applicant_type === "individual" ? state.bank_account_number : null,
-    bank_account_name: state.applicant_type === "individual" ? state.bank_account_name : null,
-    applicant_company_name: state.applicant_type === "corporate" ? state.applicant_company_name : null,
-    applicant_cac_number: state.applicant_type === "corporate" ? state.applicant_cac_number : null,
-    applicant_company_address: null,
-    applicant_directors: state.applicant_type === "corporate" && !state.applicant_is_sole_signatory ? state.applicant_directors : [],
-
-    // NOK
-    nok_name: state.nok_name || null,
-    nok_phone: state.nok_phone || null,
-    nok_address: state.nok_address || null,
-    nok_relationship: state.nok_relationship || null,
-
-    // attestation
-    attestation_signed_name: state.attestation_signed_name.trim(),
-    declaration_accepted: true,
-  });
 
   const submit = async () => {
     setError(null);
     setSubmitting(true);
     try {
-      const { data: app } = await api.post("/borrower/applications", buildPayload());
-      const appId = app.id;
+      // Ensure we have a draft id
+      let appId = draftId;
+      if (!appId) {
+        const { data: created } = await api.post("/borrower/drafts");
+        appId = created.id;
+        setDraftId(appId);
+      }
+
+      // Push latest state + effective rate into the draft
+      const rate = computeEffectiveRate();
+      await api.put(`/borrower/drafts/${appId}`, {
+        ...buildDraftPatch(state),
+        interest_rate_monthly_pct: rate,
+      });
 
       const uploads: Promise<unknown>[] = [];
       const docKeys = ["gov_id", "bank_statement", "proof_of_address", "product_specific", "admission_receipt", "deposit_receipt", "passport_photo", "sponsor_cac", "applicant_cac"];
@@ -567,8 +602,20 @@ export default function ApplyWizard({ setActiveTab }: Props) {
       }
 
       await Promise.all(uploads);
+      await api.post(`/borrower/drafts/${appId}/submit`, {
+        declaration_accepted: true,
+        sponsor: state.has_sponsor ? {
+          sponsor_type: state.sponsor_type,
+          ...state.sponsor,
+          directors: state.sponsor_type === "corporate" && !state.sponsor.is_sole_signatory ? state.sponsor_directors : [],
+          witness: state.sponsor_witness.full_name.trim() ? state.sponsor_witness : null,
+        } : null,
+        applicant_directors: state.applicant_type === "corporate" && !state.applicant_is_sole_signatory ? state.applicant_directors : [],
+      });
+      setDraftId(null);
 
       queryClient.invalidateQueries({ queryKey: ["borrower-applications"] });
+      queryClient.invalidateQueries({ queryKey: ["borrower-drafts"] });
       setActiveTab("status");
     } catch (err) {
       const axiosErr = err as AxiosError<{ message?: string }>;

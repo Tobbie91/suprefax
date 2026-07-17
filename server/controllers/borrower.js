@@ -8,11 +8,208 @@ export const getBorrowerApplications = async (req, res) => {
      FROM applications a
      LEFT JOIN users ag ON ag.id = a.agent_id
      LEFT JOIN repayments r ON r.application_id = a.id
-     WHERE a.borrower_id = $1
+     WHERE a.borrower_id = $1 AND a.status <> 'draft'
      ORDER BY a.created_at DESC`,
     [req.user.id]
   );
   res.json(result.rows);
+};
+
+export const getBorrowerDrafts = async (req, res) => {
+  const draftsResult = await db.query(
+    `SELECT * FROM applications
+     WHERE borrower_id=$1 AND status='draft'
+     ORDER BY created_at DESC`,
+    [req.user.id]
+  );
+  const drafts = draftsResult.rows;
+  if (drafts.length === 0) return res.json([]);
+  const ids = drafts.map((d) => d.id);
+  const docsResult = await db.query(
+    `SELECT application_id, doc_type, cloudinary_url, id, uploaded_at
+     FROM application_documents
+     WHERE application_id = ANY($1::uuid[])`,
+    [ids]
+  );
+  const docsByApp = new Map();
+  for (const d of docsResult.rows) {
+    if (!docsByApp.has(d.application_id)) docsByApp.set(d.application_id, []);
+    docsByApp.get(d.application_id).push(d);
+  }
+  res.json(drafts.map((d) => ({ ...d, documents: docsByApp.get(d.id) || [] })));
+};
+
+export const createDraft = async (req, res) => {
+  const result = await db.query(
+    `INSERT INTO applications (borrower_id, status)
+     VALUES ($1, 'draft') RETURNING *`,
+    [req.user.id]
+  );
+  res.status(201).json(result.rows[0]);
+};
+
+const DRAFT_UPDATABLE = new Set([
+  "product", "amount", "duration_days", "purpose",
+  "int_passport_no", "borrower_address",
+  "bank_name", "bank_account_number", "bank_account_name",
+  "nok_name", "nok_phone", "nok_address", "nok_relationship",
+  "applicant_type", "agent_route", "has_sponsor",
+  "visa_reference_no", "company_name", "cac_number", "supplier_code", "po_number", "po_expiry",
+  "student_id", "course", "school_name", "school_address",
+  "destination_country", "destination_state", "travelers_count", "accommodation_type", "accommodation_address",
+  "delivery_country", "delivery_state", "delivery_address", "shipping_method",
+  "addr_country", "addr_state", "addr_lga", "addr_house_number", "addr_street_name", "addr_city", "addr_landmark", "addr_postal_code",
+  "applicant_company_name", "applicant_cac_number", "applicant_company_address",
+  "attestation_signed_name", "interest_rate_monthly_pct",
+]);
+
+export const updateDraft = async (req, res) => {
+  const b = req.body || {};
+  const setPairs = [];
+  const values = [];
+  let paramIdx = 1;
+  for (const k of Object.keys(b)) {
+    if (!DRAFT_UPDATABLE.has(k)) continue;
+    setPairs.push(`${k}=$${paramIdx}`);
+    values.push(b[k] === "" ? null : b[k]);
+    paramIdx++;
+  }
+  if (Array.isArray(b.additional_agent_ids)) {
+    setPairs.push(`additional_agent_ids=$${paramIdx}`);
+    values.push(b.additional_agent_ids.filter(Boolean));
+    paramIdx++;
+  }
+  if (b.agent_id !== undefined) {
+    setPairs.push(`agent_id=$${paramIdx}`);
+    values.push(b.agent_id || null);
+    paramIdx++;
+  }
+  if (setPairs.length === 0) {
+    const cur = await db.query(
+      "SELECT * FROM applications WHERE id=$1 AND borrower_id=$2 AND status='draft'",
+      [req.params.id, req.user.id]
+    );
+    if (cur.rows.length === 0) return res.status(404).json({ message: "Draft not found." });
+    return res.json(cur.rows[0]);
+  }
+  values.push(req.params.id, req.user.id);
+  const result = await db.query(
+    `UPDATE applications
+       SET ${setPairs.join(", ")}
+     WHERE id=$${paramIdx} AND borrower_id=$${paramIdx + 1} AND status='draft'
+     RETURNING *`,
+    values
+  );
+  if (result.rows.length === 0) return res.status(404).json({ message: "Draft not found." });
+  res.json(result.rows[0]);
+};
+
+export const deleteDraft = async (req, res) => {
+  const result = await db.query(
+    `DELETE FROM applications
+     WHERE id=$1 AND borrower_id=$2 AND status='draft'
+     RETURNING id`,
+    [req.params.id, req.user.id]
+  );
+  if (result.rows.length === 0) return res.status(404).json({ message: "Draft not found." });
+  res.json({ deleted: result.rows[0].id });
+};
+
+export const submitDraft = async (req, res) => {
+  const cur = await db.query(
+    "SELECT * FROM applications WHERE id=$1 AND borrower_id=$2 AND status='draft'",
+    [req.params.id, req.user.id]
+  );
+  if (cur.rows.length === 0) return res.status(404).json({ message: "Draft not found." });
+  const a = cur.rows[0];
+  const missing = CORE_REQUIRED
+    .filter((k) => k !== "declaration_accepted")
+    .filter((k) => a[k] === undefined || a[k] === "" || a[k] === null);
+  const declarationOk = req.body?.declaration_accepted === true;
+  if (missing.length > 0) {
+    return res.status(400).json({ message: `Draft incomplete: ${missing.join(", ")}`, missing });
+  }
+  if (!declarationOk) {
+    return res.status(400).json({ message: "You must accept the declaration." });
+  }
+  if (a.applicant_type === "individual" && !/^\d{10}$/.test(a.bank_account_number || "")) {
+    return res.status(400).json({ message: "Applicant bank account number must be exactly 10 digits.", field: "bank_account_number" });
+  }
+  if (a.applicant_type === "corporate" && !/^\d{10}$/.test(a.applicant_bank_account_number || "")) {
+    return res.status(400).json({ message: "Company bank account number must be exactly 10 digits.", field: "applicant_bank_account_number" });
+  }
+
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Nested inserts: sponsor + directors + witness + applicant directors
+    // (any prior rows are cleaned first so re-submits are idempotent)
+    await client.query("DELETE FROM application_sponsor_directors WHERE sponsor_id IN (SELECT id FROM application_sponsors WHERE application_id=$1)", [a.id]);
+    await client.query("DELETE FROM application_sponsors WHERE application_id=$1", [a.id]);
+    await client.query("DELETE FROM application_witnesses WHERE application_id=$1", [a.id]);
+    await client.query("DELETE FROM application_applicant_directors WHERE application_id=$1", [a.id]);
+
+    const s = req.body?.sponsor;
+    if (a.has_sponsor && s) {
+      const sponsorRes = await client.query(
+        `INSERT INTO application_sponsors (
+           application_id, sponsor_type, full_name, nin, bvn, phone, email, passport_no, relationship,
+           bank_name, bank_account_number, bank_account_name,
+           country, state, lga, house_number, street_name, city,
+           disclaimer_confirmed_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+         RETURNING id`,
+        [
+          a.id, s.sponsor_type || "personal", s.full_name || null, s.nin || null, s.bvn || null, s.phone || null, s.email || null, s.passport_no || null, s.relationship || null,
+          s.bank_name || null, s.bank_account_number || null, s.bank_account_name || null,
+          s.country || null, s.state || null, s.lga || null, s.house_number || null, s.street_name || null, s.city || null,
+          s.disclaimer_confirmed ? new Date() : null,
+        ]
+      );
+      const sponsorId = sponsorRes.rows[0].id;
+      for (const d of s.directors || []) {
+        await client.query(
+          `INSERT INTO application_sponsor_directors (sponsor_id, full_name, nin, phone, email, bank_name, bank_account_number, bank_account_name, country, state, disclaimer_confirmed_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+          [sponsorId, d.full_name || null, d.nin || null, d.phone || null, d.email || null, d.bank_name || null, d.bank_account_number || null, d.bank_account_name || null, d.country || null, d.state || null, d.disclaimer_confirmed ? new Date() : null]
+        );
+      }
+      if (s.witness && s.witness.full_name) {
+        await client.query(
+          `INSERT INTO application_witnesses (application_id, witnessee_type, full_name, nin, phone, email, passport_no, confirmed_at)
+           VALUES ($1, 'sponsor', $2, $3, $4, $5, $6, $7)`,
+          [a.id, s.witness.full_name, s.witness.nin || null, s.witness.phone || null, s.witness.email || null, s.witness.passport_no || null, s.witness.confirmed ? new Date() : null]
+        );
+      }
+    }
+
+    for (const d of req.body?.applicant_directors || []) {
+      await client.query(
+        `INSERT INTO application_applicant_directors (application_id, full_name, nin, phone, email, bank_name, bank_account_number, bank_account_name, country, state, disclaimer_confirmed_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        [a.id, d.full_name || null, d.nin || null, d.phone || null, d.email || null, d.bank_name || null, d.bank_account_number || null, d.bank_account_name || null, d.country || null, d.state || null, d.disclaimer_confirmed ? new Date() : null]
+      );
+    }
+
+    const result = await client.query(
+      `UPDATE applications
+         SET status='awaiting_quote',
+             declaration_accepted_at=NOW(),
+             attestation_signed_at=COALESCE(attestation_signed_at, NOW())
+       WHERE id=$1
+       RETURNING *`,
+      [a.id]
+    );
+
+    await client.query("COMMIT");
+    res.json(result.rows[0]);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 };
 
 export const getBorrowerExtensions = async (req, res) => {

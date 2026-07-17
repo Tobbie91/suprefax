@@ -7,11 +7,11 @@ import { applicationSchema, extensionSchema, loginSchema } from "../validation/a
 
 import { login, register, bootstrapAdmin } from "../controllers/auth.js";
 import { createApplication, getAgentApplications, getAgentRepayments, quoteApplication, getLoanBaselines, listVerifiedAgents } from "../controllers/application.js";
-import { getBorrowerRepayments, getBorrowerNotifications, getBorrowerApplications, getBorrowerExtensions, createBorrowerApplication, acceptQuote, declineQuote } from "../controllers/borrower.js";
+import { getBorrowerRepayments, getBorrowerNotifications, getBorrowerApplications, getBorrowerExtensions, createBorrowerApplication, acceptQuote, declineQuote, getBorrowerDrafts, createDraft, updateDraft, submitDraft, deleteDraft } from "../controllers/borrower.js";
 import { requestExtension, approveExtension, declineExtension } from "../controllers/extensions.js";
 import { sign, getSignatures } from "../controllers/signature.js";
 import { getAllApplications, getExtensions, getAuditLogs, getAnalytics, controlNotifications, listAgents, listCustomers, createAgent, resetNonAdminUsers, manuallyVerifyKyc } from "../controllers/admin.js";
-import { getDocument, listApplicationDocuments, uploadApplicationDocument } from "../controllers/documents.js";
+import { getDocument, listApplicationDocuments, uploadApplicationDocument, deleteApplicationDocument } from "../controllers/documents.js";
 import { initiateKyc, getKycStatus, handleProveWebhook, finalizeKyc } from "../controllers/kyc.js";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
@@ -30,6 +30,11 @@ router.get("/borrower/extensions", authenticate, authorize(["borrower"]), requir
 router.post("/borrower/applications", authenticate, authorize(["borrower"]), requireVerifiedKyc, createBorrowerApplication);
 router.post("/borrower/applications/:id/accept-quote", authenticate, authorize(["borrower"]), requireVerifiedKyc, acceptQuote);
 router.post("/borrower/applications/:id/decline-quote", authenticate, authorize(["borrower"]), requireVerifiedKyc, declineQuote);
+router.get("/borrower/drafts", authenticate, authorize(["borrower"]), requireVerifiedKyc, getBorrowerDrafts);
+router.post("/borrower/drafts", authenticate, authorize(["borrower"]), requireVerifiedKyc, createDraft);
+router.put("/borrower/drafts/:id", authenticate, authorize(["borrower"]), requireVerifiedKyc, updateDraft);
+router.post("/borrower/drafts/:id/submit", authenticate, authorize(["borrower"]), requireVerifiedKyc, submitDraft);
+router.delete("/borrower/drafts/:id", authenticate, authorize(["borrower"]), requireVerifiedKyc, deleteDraft);
 router.get("/notifications", authenticate, getBorrowerNotifications);
 
 // Loan reference data (available to all authenticated users)
@@ -39,6 +44,7 @@ router.get("/loan-baselines", authenticate, getLoanBaselines);
 // Application documents
 router.get("/applications/:id/documents", authenticate, listApplicationDocuments);
 router.post("/applications/:id/documents", authenticate, authorize(["borrower"]), requireVerifiedKyc, upload.single("file"), uploadApplicationDocument);
+router.delete("/applications/:id/documents/:docId", authenticate, authorize(["borrower"]), requireVerifiedKyc, deleteApplicationDocument);
 
 // KYC (Mono Prove flow). Initiate is auth-gated; webhook is public.
 router.get("/kyc/status", authenticate, getKycStatus);
