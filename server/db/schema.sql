@@ -50,6 +50,7 @@ ALTER TABLE applications ADD COLUMN IF NOT EXISTS borrower_decision_at TIMESTAMP
 
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS applicant_type TEXT DEFAULT 'individual';
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS agent_route TEXT DEFAULT 'direct';
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS additional_agent_ids UUID[] DEFAULT '{}';
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS has_sponsor BOOLEAN DEFAULT FALSE;
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS is_returning_borrower BOOLEAN DEFAULT FALSE;
 

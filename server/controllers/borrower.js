@@ -52,9 +52,23 @@ export const createBorrowerApplication = async (req, res) => {
     }
   }
 
+  // Bank account number format validation (Nigerian NUBAN = 10 digits)
+  const accountFields = [
+    { key: "bank_account_number", label: "Applicant bank account number", value: b.bank_account_number, required: b.applicant_type === "individual" },
+    { key: "applicant_bank_account_number", label: "Applicant company bank account number", value: b.applicant_bank_account_number, required: b.applicant_type === "corporate" },
+  ];
+  for (const f of accountFields) {
+    if (!f.required) continue;
+    if (!/^\d{10}$/.test(f.value || "")) {
+      return res.status(400).json({ message: `${f.label} must be exactly 10 digits.`, field: f.key });
+    }
+  }
+
   const client = await db.connect();
   try {
     await client.query("BEGIN");
+
+    const additionalAgents = Array.isArray(b.additional_agent_ids) ? b.additional_agent_ids.filter(Boolean) : [];
 
     const appResult = await client.query(
       `INSERT INTO applications (
@@ -62,7 +76,7 @@ export const createBorrowerApplication = async (req, res) => {
          int_passport_no, borrower_address,
          bank_name, bank_account_number, bank_account_name,
          nok_name, nok_phone, nok_address, nok_relationship,
-         applicant_type, agent_route, has_sponsor, is_returning_borrower,
+         applicant_type, agent_route, has_sponsor, additional_agent_ids,
          visa_reference_no, company_name, cac_number, supplier_code, po_number, po_expiry,
          student_id, course, school_name, school_address,
          destination_country, destination_state, travelers_count, accommodation_type, accommodation_address,
@@ -91,7 +105,7 @@ export const createBorrowerApplication = async (req, res) => {
         b.int_passport_no || null, b.borrower_address || null,
         b.bank_name || null, b.bank_account_number || null, b.bank_account_name || null,
         b.nok_name || null, b.nok_phone || null, b.nok_address || null, b.nok_relationship || null,
-        b.applicant_type, b.agent_route, !!b.has_sponsor, !!b.is_returning_borrower,
+        b.applicant_type, b.agent_route, !!b.has_sponsor, additionalAgents,
         b.visa_reference_no || null, b.company_name || null, b.cac_number || null, b.supplier_code || null, b.po_number || null, b.po_expiry || null,
         b.student_id || null, b.course || null, b.school_name || null, b.school_address || null,
         b.destination_country || null, b.destination_state || null, b.travelers_count ? Number(b.travelers_count) : null, b.accommodation_type || null, b.accommodation_address || null,
