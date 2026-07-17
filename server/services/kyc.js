@@ -51,6 +51,8 @@ export const getProveStatus = async (reference) => {
   let lastResult;
   for (const p of paths) {
     lastResult = await get(p);
+    const preview = JSON.stringify(lastResult.data || {}).slice(0, 500);
+    console.log(`[mono/prove/status] path=${p} httpStatus=${lastResult.status} body=${preview}`);
     if (lastResult.ok) return lastResult;
     if (lastResult.status !== 404) return lastResult;
   }

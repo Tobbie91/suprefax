@@ -88,9 +88,10 @@ export const finalizeKyc = async (req, res) => {
   }
 
   const body = mono.data?.data || mono.data || {};
-  const providerStatus = String(body.status || body.session_status || "").toLowerCase();
-  const isSuccess = /success|verified|complete|approved/.test(providerStatus);
-  const isFailure = /fail|reject|cancel|declined/.test(providerStatus);
+  const providerStatus = String(body.status || body.session_status || body.state || "").toLowerCase();
+  const identityHint = body.identity || body.customer || body.nin || body.bvn || body.verified === true;
+  const isSuccess = /success|verified|complete|approved|passed/.test(providerStatus) || !!identityHint;
+  const isFailure = /fail|reject|cancel|declined|invalid/.test(providerStatus);
 
   if (isSuccess) {
     const identity = body.identity || body.customer || body;

@@ -18,7 +18,11 @@ export default function Kyc() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [polling, setPolling] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
   const pollRef = useRef<number | null>(null);
+  const pollTickRef = useRef(0);
+
+  const POLL_TICK_CAP = 15;
 
   const isAgent = user?.role === "agent";
   const accent = isAgent ? "var(--purple)" : "var(--blue)";
@@ -29,6 +33,7 @@ export default function Kyc() {
       window.clearInterval(pollRef.current);
       pollRef.current = null;
     }
+    pollTickRef.current = 0;
     setPolling(false);
   };
 
@@ -36,25 +41,9 @@ export default function Kyc() {
     return stopPolling;
   }, []);
 
-  const refreshStatus = async (): Promise<KycStatus | undefined> => {
-    try {
-      const { data } = await api.get<{ kyc_status: KycStatus; kyc_rejection_reason?: string }>("/kyc/status");
-      if (user && data.kyc_status) setUser({ ...user, kyc_status: data.kyc_status });
-      if (data.kyc_status === "verified") {
-        stopPolling();
-        navigate(successRoute);
-      } else if (data.kyc_status === "rejected") {
-        stopPolling();
-        setError(data.kyc_rejection_reason || "Verification was rejected. You can try again.");
-      }
-      return data.kyc_status;
-    } catch (err) {
-      console.warn("status fetch failed", err);
-      return undefined;
-    }
-  };
-
   const finalizeStatus = async (): Promise<KycStatus | undefined> => {
+    if (finalizing) return undefined;
+    setFinalizing(true);
     try {
       const { data } = await api.post<{ kyc_status: KycStatus; kyc_rejection_reason?: string }>("/kyc/finalize");
       if (user && data.kyc_status) setUser({ ...user, kyc_status: data.kyc_status });
@@ -69,7 +58,19 @@ export default function Kyc() {
     } catch (err) {
       console.warn("finalize failed", err);
       return undefined;
+    } finally {
+      setFinalizing(false);
     }
+  };
+
+  const pollTick = async () => {
+    pollTickRef.current += 1;
+    if (pollTickRef.current > POLL_TICK_CAP) {
+      stopPolling();
+      setError("Verification is taking longer than expected. Click 'Check my status' below once you've finished on Mono.");
+      return;
+    }
+    await finalizeStatus();
   };
 
   useEffect(() => {
@@ -84,7 +85,8 @@ export default function Kyc() {
       if (cancelled) return;
       if (isMonoReturn && status !== "verified" && status !== "rejected") {
         setPolling(true);
-        pollRef.current = window.setInterval(refreshStatus, 4000);
+        pollTickRef.current = 0;
+        pollRef.current = window.setInterval(pollTick, 4000);
       }
     })();
 
@@ -221,9 +223,9 @@ export default function Kyc() {
             className="sx-submit-btn"
             style={{ background: "transparent", color: accent, border: `1px solid ${accent}`, marginTop: 8 }}
             onClick={finalizeStatus}
-            disabled={loading}
+            disabled={loading || finalizing}
           >
-            I've completed verification — check my status
+            {finalizing ? "Checking…" : "I've completed verification — check my status"}
           </button>
 
           <div className="sx-si-footer" style={{ marginTop: 20 }}>
