@@ -118,6 +118,14 @@ export const createBorrowerApplication = async (req, res) => {
 
     const app = appResult.rows[0];
 
+    if (b.interest_rate_monthly_pct != null && !Number.isNaN(Number(b.interest_rate_monthly_pct))) {
+      await client.query(
+        "UPDATE applications SET interest_rate_monthly_pct=$1 WHERE id=$2",
+        [Number(b.interest_rate_monthly_pct), app.id]
+      );
+      app.interest_rate_monthly_pct = Number(b.interest_rate_monthly_pct);
+    }
+
     if (b.has_sponsor && b.sponsor) {
       const s = b.sponsor;
       const sponsorRes = await client.query(

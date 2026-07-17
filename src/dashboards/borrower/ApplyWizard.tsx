@@ -3,11 +3,20 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 import { api } from "../../api/client";
 import SignaturePad from "../../components/SignaturePad";
+import { validateFile, PHOTO_OPTS, DOC_OPTS, FileValidateOpts } from "./fileValidation";
+import { computeLoan, formatDateRange } from "./loanMath";
 
 interface Agent {
   id: string;
   full_name: string;
   email: string;
+  agent_rate_offset_pct?: number;
+}
+
+interface Baseline {
+  product_key: string;
+  duration_days: number;
+  baseline_monthly_rate_pct: number;
 }
 
 interface Director {
@@ -94,10 +103,10 @@ const REQUIRED_DOCS_BASE = [
   { key: "proof_of_address", label: "Proof of address (≤ 3 months old)" },
 ];
 
-const productSpecificDoc = (product: string): { label: string; required: boolean } => {
-  switch (product) {
-    case "Student POF": return { label: "Admission letter", required: true };
-    case "Travel POF": return { label: "Visa approval letter", required: true };
+const productSpecificDoc = (state: { product: string; student_admission_received?: boolean; travel_visa_received?: boolean }): { label: string; required: boolean } => {
+  switch (state.product) {
+    case "Student POF": return { label: "Admission letter", required: !!state.student_admission_received };
+    case "Travel POF": return { label: "Visa approval letter", required: !!state.travel_visa_received };
     case "LPO financing": return { label: "Approved LPO document", required: true };
     case "Soft business loan": return { label: "CAC business registration", required: true };
     default: return { label: "Product-specific document", required: false };
@@ -116,6 +125,8 @@ interface WizardState {
   bvn: string;
   visa_reference_no: string;
   student_admission_received: boolean;
+  student_admission_fee_paid: boolean;
+  student_initial_deposit_paid: boolean;
   travel_visa_received: boolean;
   company_name: string;
   cac_number: string;
@@ -204,8 +215,10 @@ const EMPTY: WizardState = {
   nin: "",
   bvn: "",
   visa_reference_no: "",
-  student_admission_received: true,
-  travel_visa_received: true,
+  student_admission_received: false,
+  student_admission_fee_paid: false,
+  student_initial_deposit_paid: false,
+  travel_visa_received: false,
   company_name: "",
   cac_number: "",
   company_phone: "",
@@ -270,7 +283,7 @@ const EMPTY: WizardState = {
   nok_address: "",
   nok_relationship: "",
 
-  files: { gov_id: null, bank_statement: null, proof_of_address: null, product_specific: null, admission_receipt: null, passport_photo: null, sponsor_cac: null, applicant_cac: null },
+  files: { gov_id: null, bank_statement: null, proof_of_address: null, product_specific: null, admission_receipt: null, deposit_receipt: null, passport_photo: null, sponsor_cac: null, applicant_cac: null },
   additionalFiles: [],
 
   master_confirmed: false,
@@ -303,6 +316,12 @@ export default function ApplyWizard({ setActiveTab }: Props) {
   const { data: agents = [] } = useQuery<Agent[]>({
     queryKey: ["verified-agents"],
     queryFn: () => api.get("/agents/verified").then((r) => r.data),
+  });
+
+  const { data: baselines = [] } = useQuery<Baseline[]>({
+    queryKey: ["loan-baselines"],
+    queryFn: () => api.get("/loan-baselines").then((r) => r.data),
+    staleTime: 5 * 60 * 1000,
   });
 
   const update = (patch: Partial<WizardState>) => setState((s) => ({ ...s, ...patch }));
@@ -375,11 +394,17 @@ export default function ApplyWizard({ setActiveTab }: Props) {
         for (const d of REQUIRED_DOCS_BASE) {
           if (!state.files[d.key]) return `Upload ${d.label}.`;
         }
-        if (productSpecificDoc(state.product).required && !state.files.product_specific) {
-          return `Upload ${productSpecificDoc(state.product).label}.`;
+        {
+          const psd = productSpecificDoc(state);
+          if (psd.required && !state.files.product_specific) {
+            return `Upload ${psd.label}.`;
+          }
         }
-        if (state.product === "Student POF" && !state.files.admission_receipt) {
+        if (state.product === "Student POF" && state.student_admission_fee_paid && !state.files.admission_receipt) {
           return "Upload the admission fee payment receipt.";
+        }
+        if (state.product === "Student POF" && state.student_initial_deposit_paid && !state.files.deposit_receipt) {
+          return "Upload the initial school deposit receipt.";
         }
         if (!state.signature_data) return "Please draw or upload your signature.";
         return null;
@@ -412,11 +437,22 @@ export default function ApplyWizard({ setActiveTab }: Props) {
     update({ additionalFiles: list });
   };
 
+  const computeEffectiveRate = (): number | null => {
+    const baseline = baselines.find((b) => b.product_key === state.product && b.duration_days === state.duration_days);
+    if (!baseline) return null;
+    const base = Number(baseline.baseline_monthly_rate_pct);
+    if (state.agent_route !== "agent_assisted") return base;
+    const primary = agents.find((a) => a.id === state.agent_ids[0]);
+    if (!primary) return base;
+    return base + Number(primary.agent_rate_offset_pct || 0);
+  };
+
   const buildPayload = () => ({
     product: state.product,
     amount: Number(state.amount),
     duration_days: state.duration_days,
     purpose: state.purpose.trim(),
+    interest_rate_monthly_pct: computeEffectiveRate(),
 
     int_passport_no: state.int_passport_no.trim() || null,
     borrower_address: `${state.addr_house_number} ${state.addr_street_name}, ${state.addr_city}, ${state.addr_state}`.trim() || null,
@@ -501,7 +537,7 @@ export default function ApplyWizard({ setActiveTab }: Props) {
       const appId = app.id;
 
       const uploads: Promise<unknown>[] = [];
-      const docKeys = ["gov_id", "bank_statement", "proof_of_address", "product_specific", "admission_receipt", "passport_photo", "sponsor_cac", "applicant_cac"];
+      const docKeys = ["gov_id", "bank_statement", "proof_of_address", "product_specific", "admission_receipt", "deposit_receipt", "passport_photo", "sponsor_cac", "applicant_cac"];
       for (const key of docKeys) {
         const f = state.files[key];
         if (!f) continue;
@@ -559,7 +595,7 @@ export default function ApplyWizard({ setActiveTab }: Props) {
         {step === 2 && <Step3AddressDetails state={state} update={update} />}
         {step === 3 && <Step4ApplicationType state={state} update={update} agents={agents} />}
         {step === 4 && <Step5Sponsor state={state} update={update} updateSponsor={updateSponsor} updateWitness={updateWitness} onFile={handleFile} />}
-        {step === 5 && <Step6BankLoan state={state} update={update} onFile={handleFile} />}
+        {step === 5 && <Step6BankLoan state={state} update={update} onFile={handleFile} baselines={baselines} agents={agents} />}
         {step === 6 && <Step7DeclarationDocs state={state} update={update} onFile={handleFile} onAdditional={handleAdditional} />}
         {step === 7 && <Step8Review state={state} update={update} agents={agents} />}
 
@@ -828,7 +864,7 @@ function Step2PersonalInfo({ state, update, onFile }: { state: WizardState; upda
             <option value="NO">NO</option>
           </select>
         </Field>
-        <FileField label="Passport Photograph" onChange={onFile("passport_photo")} file={state.files.passport_photo} />
+        <FileField label="Passport Photograph" onChange={onFile("passport_photo")} file={state.files.passport_photo} validate={PHOTO_OPTS} accept="image/*" />
       </>
     );
   }
@@ -852,14 +888,28 @@ function Step2PersonalInfo({ state, update, onFile }: { state: WizardState; upda
         Your NIN, BVN and phone number are pulled from your verified Mono identity — no need to re-enter them.
       </div>
       {state.product === "Student POF" && (
-        <Field label="Have you received your school admission letter?">
-          <select className="sb-m-fi" value={state.student_admission_received ? "YES" : "NO"} onChange={(e) => update({ student_admission_received: e.target.value === "YES" })}>
-            <option value="YES">YES</option>
-            <option value="NO">NO</option>
-          </select>
-        </Field>
+        <>
+          <Field label="Have you received your school admission letter?">
+            <select className="sb-m-fi" value={state.student_admission_received ? "YES" : "NO"} onChange={(e) => update({ student_admission_received: e.target.value === "YES" })}>
+              <option value="NO">NO</option>
+              <option value="YES">YES</option>
+            </select>
+          </Field>
+          <Field label="Have you paid your admission / application fee?">
+            <select className="sb-m-fi" value={state.student_admission_fee_paid ? "YES" : "NO"} onChange={(e) => update({ student_admission_fee_paid: e.target.value === "YES" })}>
+              <option value="NO">NO</option>
+              <option value="YES">YES</option>
+            </select>
+          </Field>
+          <Field label="Have you paid the initial school deposit?">
+            <select className="sb-m-fi" value={state.student_initial_deposit_paid ? "YES" : "NO"} onChange={(e) => update({ student_initial_deposit_paid: e.target.value === "YES" })}>
+              <option value="NO">NO</option>
+              <option value="YES">YES</option>
+            </select>
+          </Field>
+        </>
       )}
-      <FileField label="Passport Photograph" onChange={onFile("passport_photo")} file={state.files.passport_photo} />
+      <FileField label="Passport Photograph" onChange={onFile("passport_photo")} file={state.files.passport_photo} validate={PHOTO_OPTS} accept="image/*" />
     </>
   );
 }
@@ -1293,7 +1343,7 @@ function Step5Sponsor({
               </button>
 
               <div style={{ marginTop: 16 }}>
-                <FileField label="Upload Company CAC Document (PDF, JPG, PNG · max 8 MB)" required onChange={onFile("sponsor_cac")} file={state.files.sponsor_cac} />
+                <FileField label="Upload Company CAC Document (PDF, JPG, PNG · max 8 MB)" required onChange={onFile("sponsor_cac")} file={state.files.sponsor_cac} validate={DOC_OPTS} />
               </div>
 
               {!s.is_sole_signatory && (
@@ -1375,7 +1425,7 @@ function DirectorForm({ index, director, onChange }: { index: number; director: 
 // STEP 6 — Bank & Loan Details (disbursement + amount/duration/purpose)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Step6BankLoan({ state, update, onFile }: { state: WizardState; update: Updater; onFile: (key: string) => (e: ChangeEvent<HTMLInputElement>) => void }) {
+function Step6BankLoan({ state, update, onFile, baselines, agents }: { state: WizardState; update: Updater; onFile: (key: string) => (e: ChangeEvent<HTMLInputElement>) => void; baselines: Baseline[]; agents: Agent[] }) {
   const setDirCount = (n: number) => {
     const cur = state.applicant_directors;
     if (n > cur.length) {
@@ -1477,7 +1527,7 @@ function Step6BankLoan({ state, update, onFile }: { state: WizardState; update: 
           </button>
 
           <div style={{ marginTop: 16 }}>
-            <FileField label="Upload Company CAC Document (PDF, JPG, PNG · max 8 MB)" required onChange={onFile("applicant_cac")} file={state.files.applicant_cac} />
+            <FileField label="Upload Company CAC Document (PDF, JPG, PNG · max 8 MB)" required onChange={onFile("applicant_cac")} file={state.files.applicant_cac} validate={DOC_OPTS} />
           </div>
 
           {!state.applicant_is_sole_signatory && (
@@ -1514,15 +1564,55 @@ function Step6BankLoan({ state, update, onFile }: { state: WizardState; update: 
           </select>
         </Field>
       </Row>
-      <Row>
-        <Field label="Interest Rate Percentage (%)">
-          <input className="sb-m-fi ro" value="Will be calculated automatically based on your loan type and duration." disabled />
-        </Field>
-        <Field label="Purpose of Loan" required>
-          <input className="sb-m-fi" value={state.purpose} onChange={(e) => update({ purpose: e.target.value })} placeholder="Briefly state what the funds will be used for" />
-        </Field>
-      </Row>
+      <Field label="Purpose of Loan" required>
+        <input className="sb-m-fi" value={state.purpose} onChange={(e) => update({ purpose: e.target.value })} placeholder="Briefly state what the funds will be used for" />
+      </Field>
+
+      <LoanPreviewPanel state={state} baselines={baselines} agents={agents} />
     </>
+  );
+}
+
+function LoanPreviewPanel({ state, baselines, agents }: { state: WizardState; baselines: Baseline[]; agents: Agent[] }) {
+  const baseline = baselines.find((b) => b.product_key === state.product && b.duration_days === state.duration_days);
+  const baselineRate = baseline ? Number(baseline.baseline_monthly_rate_pct) : null;
+
+  const primaryAgent = state.agent_route === "agent_assisted"
+    ? agents.find((a) => a.id === state.agent_ids[0])
+    : undefined;
+  const agentOffset = primaryAgent ? Number(primaryAgent.agent_rate_offset_pct || 0) : 0;
+  const agentRate = baselineRate != null && primaryAgent ? baselineRate + agentOffset : null;
+
+  const effectiveRate = agentRate ?? baselineRate;
+  const amount = Number(state.amount) || 0;
+  if (!amount || effectiveRate == null || !state.duration_days) return null;
+
+  const loan = computeLoan({ amount, monthlyRatePct: effectiveRate, durationDays: state.duration_days });
+
+  return (
+    <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 8, padding: 14, marginTop: 14 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)", marginBottom: 10 }}>Interest & Repayment</div>
+      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", rowGap: 6, columnGap: 12, fontSize: 12 }}>
+        <div style={{ color: "var(--muted)" }}>Suprefax rate</div>
+        <div><strong>{baselineRate != null ? `${baselineRate}% per month` : "—"}</strong></div>
+        {state.agent_route === "agent_assisted" && (
+          <>
+            <div style={{ color: "var(--muted)" }}>Your agent's rate</div>
+            <div>
+              {agentRate != null
+                ? <><strong>{agentRate.toFixed(2)}% per month</strong>{agentOffset > 0 && <span style={{ color: "var(--muted)" }}> (+{agentOffset}% agent margin)</span>}</>
+                : "Pick an agent to see their rate"}
+            </div>
+          </>
+        )}
+        <div style={{ color: "var(--muted)" }}>Interest</div>
+        <div><strong>{fmtMoney(loan.interest)}</strong></div>
+        <div style={{ color: "var(--muted)" }}>Total repayable</div>
+        <div><strong style={{ color: "var(--blue)" }}>{fmtMoney(loan.total)}</strong></div>
+        <div style={{ color: "var(--muted)" }}>Repayment window</div>
+        <div><strong>{formatDateRange(loan.startDate, loan.dueDate)}</strong></div>
+      </div>
+    </div>
   );
 }
 
@@ -1538,7 +1628,7 @@ function Step7DeclarationDocs({
   onFile: (key: string) => (e: ChangeEvent<HTMLInputElement>) => void;
   onAdditional: (e: ChangeEvent<HTMLInputElement>) => void;
 }) {
-  const psd = productSpecificDoc(state.product);
+  const psd = productSpecificDoc(state);
   return (
     <>
       <h4>Statutory Declaration (Oaths Act, 1990)</h4>
@@ -1574,13 +1664,18 @@ function Step7DeclarationDocs({
       <h4 style={{ marginTop: 24 }}>Required Upload Documents</h4>
       <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>Maximum file size: 8 MB. Accepted formats: PDF, JPG, PNG.</p>
 
-      <FileField label="1. Valid Government ID (NIN slip or passport data page)" required onChange={onFile("gov_id")} file={state.files.gov_id} />
-      <FileField label={`2. ${psd.label}`} required={psd.required} onChange={onFile("product_specific")} file={state.files.product_specific} />
-      {state.product === "Student POF" && (
-        <FileField label="3. School Admission Fee Payment Receipt" required onChange={onFile("admission_receipt")} file={state.files.admission_receipt} />
+      <FileField label="1. Valid Government ID (NIN slip or passport data page)" required onChange={onFile("gov_id")} file={state.files.gov_id} validate={DOC_OPTS} />
+      {psd.required && (
+        <FileField label={`2. ${psd.label}`} required onChange={onFile("product_specific")} file={state.files.product_specific} validate={DOC_OPTS} />
       )}
-      <FileField label="Bank Statement (last 3 months)" required onChange={onFile("bank_statement")} file={state.files.bank_statement} />
-      <FileField label="Proof of Address (≤ 3 months old)" required onChange={onFile("proof_of_address")} file={state.files.proof_of_address} />
+      {state.product === "Student POF" && state.student_admission_fee_paid && (
+        <FileField label="School Admission Fee Payment Receipt" required onChange={onFile("admission_receipt")} file={state.files.admission_receipt} validate={DOC_OPTS} />
+      )}
+      {state.product === "Student POF" && state.student_initial_deposit_paid && (
+        <FileField label="Initial School Deposit Receipt" required onChange={onFile("deposit_receipt")} file={state.files.deposit_receipt} validate={DOC_OPTS} />
+      )}
+      <FileField label="Bank Statement (last 3 months)" required onChange={onFile("bank_statement")} file={state.files.bank_statement} validate={DOC_OPTS} />
+      <FileField label="Proof of Address (≤ 3 months old)" required onChange={onFile("proof_of_address")} file={state.files.proof_of_address} validate={DOC_OPTS} />
 
       <div className="sb-m-fg">
         <label className="sb-m-fl">Additional documents (optional)</label>
@@ -1612,17 +1707,39 @@ function Step7DeclarationDocs({
   );
 }
 
-function FileField({ label, required, file, onChange }: {
-  label: string; required?: boolean; file: File | null;
+function FileField({ label, required, file, onChange, validate, accept }: {
+  label: string;
+  required?: boolean;
+  file: File | null;
   onChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  validate?: FileValidateOpts;
+  accept?: string;
 }) {
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  const handleChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    setValidationError(null);
+    const f = e.target.files?.[0];
+    if (!f) { onChange(e); return; }
+    if (validate) {
+      const result = await validateFile(f, validate);
+      if (!result.ok) {
+        setValidationError(result.error || "File rejected.");
+        e.target.value = "";
+        return;
+      }
+    }
+    onChange(e);
+  };
+
   return (
     <div className="sb-m-fg">
       <label className="sb-m-fl">
         {label} {required && <span style={{ color: "var(--red)" }}>*</span>}
       </label>
-      <input className="sb-m-fi" type="file" accept="image/*,application/pdf" onChange={onChange} />
-      {file && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>Selected: {file.name}</div>}
+      <input className="sb-m-fi" type="file" accept={accept ?? "image/*,application/pdf"} onChange={handleChange} />
+      {file && !validationError && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>Selected: {file.name}</div>}
+      {validationError && <div style={{ fontSize: 12, color: "var(--red)", marginTop: 4 }}>{validationError}</div>}
     </div>
   );
 }

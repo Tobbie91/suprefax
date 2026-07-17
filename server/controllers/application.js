@@ -100,7 +100,7 @@ export const getLoanBaselines = async (_req, res) => {
 
 export const listVerifiedAgents = async (_req, res) => {
   const result = await db.query(
-    "SELECT id, full_name, email FROM users WHERE role='agent' AND kyc_status='verified' ORDER BY full_name"
+    "SELECT id, full_name, email, COALESCE(agent_rate_offset_pct, 0) AS agent_rate_offset_pct FROM users WHERE role='agent' AND kyc_status='verified' ORDER BY full_name"
   );
   res.json(result.rows);
 };
